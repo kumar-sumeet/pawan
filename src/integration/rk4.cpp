@@ -75,3 +75,8 @@ void pawan::__rk4::step(const double &dt, __interaction *S, gsl_vector* states){
 	gsl_vector_free(k3);
 	gsl_vector_free(k4);
 }
+
+
+void pawan::__rk4::step(const double &dt, wake_struct *W, double* states){
+	std::cout << "test" << dt << std::endl;
+}

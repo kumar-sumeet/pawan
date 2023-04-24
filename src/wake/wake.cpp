@@ -88,6 +88,11 @@ void pawan::__wake::setStates(const gsl_vector *state){
 	gsl_vector_const_view vor = gsl_vector_const_subvector(state,matrixsize,matrixsize);
 	gsl_matrix_const_view vrx = gsl_matrix_const_view_vector(&vor.vector,np,_numDimensions);
 	gsl_matrix_memcpy(_vorticity,&vrx.matrix);
+	
+	// std::cout << "pos:\n";
+	// gsl_matrix_fprintf(stdout, &pos.matrix, "%lf");
+	// std::cout << "vor:\n";
+	// gsl_matrix_fprintf(stdout, &vrx.matrix, "%lf");
 }
 
 void pawan::__wake::getRates(gsl_vector *rate){

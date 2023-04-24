@@ -15,6 +15,7 @@
 #include "src/utils/timing_utils.h"
 #include "src/interaction/interaction.h"
 #include "src/io/io.h"
+#include "src/wake/wake_struct.h"
 
 namespace pawan{
 class __integration{
@@ -32,6 +33,7 @@ class __integration{
 		 * \param	state	System state
 		 */
 		virtual void step(const double &dt,__interaction *S, gsl_vector *state);
+		virtual void step(const double &dt, wake_struct *W, double* states) = 0;
 
 	public:
 		//! Constructor
@@ -55,6 +57,8 @@ class __integration{
 		 * \param	IO	Input/Output file writing
 		 */
 		void integrate(__interaction *S, __io *IO);
+
+		void integrate_cuda(__interaction *S);
 };
 }
 #endif

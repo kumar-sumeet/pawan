@@ -37,7 +37,7 @@ int main(int argc, char* argv[]){
 	//pawan::__interaction *S = new pawan::__parallel(W,W2);
 	//pawan::__integration *IN = new pawan::__integration(0.02,10);
 	pawan::__integration *IN = new pawan::__rk4(4,64);
-	IN->integrate(S,IO);
+	IN->integrate_cuda(S);
 	delete IN;
 	delete S;
 	delete W;

@@ -99,6 +99,10 @@ class __interaction{
 		 * \param state		Wake state
 		 */
 		virtual void getStates(gsl_vector *state);
+
+		int getSize() {
+			return _W.size();
+		}
 };
 }
 #endif
