@@ -12,50 +12,49 @@
 #include <iostream>
 #include "src/utils/print_utils.h"
 
-namespace pawan{
+namespace pawan {
 
-class __io{
+class __io {
+   private:
+    std::string _root; /*!< Root directory */
+    std::string _name; /*!< File name */
 
-	private:
-		std::string _root;	/*!< Root directory */
-		std::string _name;	/*!< File name */
+   public:
+    //! Constructor
+    /*
+     * Creates empty directory
+     */
+    __io();
 
-	public:
-		//! Constructor
-		/*
-		 * Creates empty directory
-		 */
-		__io();
-		
-		//! Destructor
-		/*
-		 * Deletes particles
-		 */
-		~__io() = default;
+    //! Destructor
+    /*
+     * Deletes particles
+     */
+    ~__io() = default;
 
-		//! Print all I/O data
-		/*
-		 * Print root directory and filename
-		 */
-		virtual void print();
+    //! Print all I/O data
+    /*
+     * Print root directory and filename
+     */
+    virtual void print();
 
-		//! Get filename
-		/*
-		 * Returns filename
-		 */
-		virtual std::string getFile();
+    //! Get filename
+    /*
+     * Returns filename
+     */
+    virtual std::string getFile();
 
-		//! Create binary file
-		/*
-		 * Creates and return binary file with filename
-		 */
-		virtual FILE* create_binary_file(std::string suffix);
+    //! Create binary file
+    /*
+     * Creates and return binary file with filename
+     */
+    virtual FILE* create_binary_file(std::string suffix);
 
-		//! Open binary file to read
-		/*
-		 * Opns binary file with filename
-		 */
-		virtual FILE* open_binary_file(std::string suffix);
+    //! Open binary file to read
+    /*
+     * Opns binary file with filename
+     */
+    virtual FILE* open_binary_file(std::string suffix);
 };
-}
+}  // namespace pawan
 #endif

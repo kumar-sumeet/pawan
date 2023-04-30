@@ -10,13 +10,15 @@
 #ifndef TIMING_UTILS_H_
 #define TIMING_UTILS_H_
 
-#include <sys/time.h>
 #include <omp.h>
+#include <sys/time.h>
 #include <string>
 
 /*! \fn inline double TIME()
  * \brief Return time
  */
-inline double TIME(){return omp_get_wtime();};
+inline double TIME() {
+    return omp_get_wtime();
+};
 
 #endif
