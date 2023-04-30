@@ -66,83 +66,97 @@ struct wake_struct {
         delete[] volume;
         delete[] birthstrength;
     }
-
-    void setStates(const double* state) {
-        size_t np = size / 2 / numDimensions;
-        size_t matrixsize = np * numDimensions;
-
-        for (size_t i = 0; i < np; i++) {
-            for (size_t j = 0; j < numDimensions; j++) {
-                position[i][j] = state[i * numDimensions + j];
-            }
-        }
-
-        for (size_t i = 0; i < np; i++) {
-            for (size_t j = 0; j < numDimensions; j++) {
-                vorticity[i][j] = state[i * numDimensions + j + matrixsize];
-            }
-        }
-    }
-
-    void getStates(double* state) {
-        for (size_t i = 0; i < numParticles; i++) {
-            for (size_t j = 0; j < numDimensions; j++) {
-                size_t ind = i * numDimensions + j;
-                state[ind] = position[i][j];
-                ind += size / 2;
-                state[ind] = vorticity[i][j];
-            }
-        }
-    }
-
-    void getRates(double* rate) {
-        for (size_t i = 0; i < numParticles; i++) {
-            for (size_t j = 0; j < numDimensions; j++) {
-                size_t ind = i * numDimensions + j;
-                rate[ind] = velocity[i][j];
-                ind += size / 2;
-                rate[ind] = retvorcity[i][j];
-            }
-        }
-    }
-
-    void interact() {
-        for (size_t i = 0; i < numParticles; i++)
-            for (size_t j = 0; j < numDimensions; j++)
-                velocity[i][j] = retvorcity[i][j] = 0;
-
-        for (size_t i_src = 0; i_src < numParticles; i_src++) {
-            double* r_src = new double[numDimensions];
-            double* a_src = new double[numDimensions];
-            double* dr_src = new double[numDimensions];
-            double* da_src = new double[numDimensions];
-            for (size_t j = 0; j < numDimensions; j++) {
-                r_src[j] = position[i_src][j];
-                a_src[j] = vorticity[i_src][j];
-                dr_src[j] = velocity[i_src][j];
-                da_src[j] = retvorcity[i_src][j];
-            }
-            double s_src = radius[i_src];
-            double v_src = volume[i_src];
-            for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {
-                double* r_trg = new double[numDimensions];
-                double* a_trg = new double[numDimensions];
-                double* dr_trg = new double[numDimensions];
-                double* da_trg = new double[numDimensions];
-                for (size_t j = 0; j < numDimensions; j++) {
-                    r_trg[j] = position[i_trg][j];
-                    a_trg[j] = vorticity[i_trg][j];
-                    dr_trg[j] = velocity[i_trg][j];
-                    da_trg[j] = retvorcity[i_trg][j];
-                }
-                double s_trg = radius[i_trg];
-                double v_trg = volume[i_trg];
-
-                INTERACT_CUDA(_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
-            }
-        }
-    }
 };
+
+inline void setStates(wake_struct* w, const double* state) {
+    size_t numDimensions = w->numDimensions;
+    size_t np = w->size / 2 / numDimensions;
+    size_t matrixsize = np * numDimensions;
+
+    for (size_t i = 0; i < np; i++) {
+        for (size_t j = 0; j < numDimensions; j++) {
+            w->position[i][j] = state[i * numDimensions + j];
+        }
+    }
+
+    for (size_t i = 0; i < np; i++) {
+        for (size_t j = 0; j < numDimensions; j++) {
+            w->vorticity[i][j] = state[i * numDimensions + j + matrixsize];
+        }
+    }
+}
+
+inline void getStates(wake_struct* w, double* state) {
+    size_t numDimensions = w->numDimensions;
+    size_t numParticles = w->numParticles;
+    for (size_t i = 0; i < numParticles; i++) {
+        for (size_t j = 0; j < numDimensions; j++) {
+            size_t ind = i * numDimensions + j;
+            state[ind] = w->position[i][j];
+            ind += w->size / 2;
+            state[ind] = w->vorticity[i][j];
+        }
+    }
+}
+
+inline void getRates(wake_struct* w, double* rate) {
+    size_t numDimensions = w->numDimensions;
+    size_t numParticles = w->numParticles;
+    for (size_t i = 0; i < numParticles; i++) {
+        for (size_t j = 0; j < numDimensions; j++) {
+            size_t ind = i * numDimensions + j;
+            rate[ind] = w->velocity[i][j];
+            ind += w->size / 2;
+            rate[ind] = w->retvorcity[i][j];
+        }
+    }
+}
+
+inline void interact(wake_struct* w) {
+    size_t numDimensions = w->numDimensions;
+    size_t numParticles = w->numParticles;
+    for (size_t i = 0; i < numParticles; i++)
+        for (size_t j = 0; j < numDimensions; j++)
+            w->velocity[i][j] = w->retvorcity[i][j] = 0;
+
+    for (size_t i_src = 0; i_src < numParticles; i_src++) {
+        double* r_src = new double[numDimensions];
+        double* a_src = new double[numDimensions];
+        double* dr_src = new double[numDimensions];
+        double* da_src = new double[numDimensions];
+        for (size_t j = 0; j < numDimensions; j++) {
+            r_src[j] = w->position[i_src][j];
+            a_src[j] = w->vorticity[i_src][j];
+            dr_src[j] = w->velocity[i_src][j];
+            da_src[j] = w->retvorcity[i_src][j];
+        }
+        double s_src = w->radius[i_src];
+        double v_src = w->volume[i_src];
+        for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {
+            double* r_trg = new double[numDimensions];
+            double* a_trg = new double[numDimensions];
+            double* dr_trg = new double[numDimensions];
+            double* da_trg = new double[numDimensions];
+            for (size_t j = 0; j < numDimensions; j++) {
+                r_trg[j] = w->position[i_trg][j];
+                a_trg[j] = w->vorticity[i_trg][j];
+                dr_trg[j] = w->velocity[i_trg][j];
+                da_trg[j] = w->retvorcity[i_trg][j];
+            }
+            double s_trg = w->radius[i_trg];
+            double v_trg = w->volume[i_trg];
+
+            for (size_t i = 0; i < 3; i++)
+            {
+                std::cout << i_src << " " << i_trg << " " << i << " " << r_src[i] << " " << a_src[i] << " " << dr_src[i] 
+                            << " " << da_src[i] << " " << r_trg[i] << " " << a_trg[i] << " " << dr_trg[i] << " " << da_trg[i] << std::endl;
+            }
+            
+
+            INTERACT_CUDA(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
+        }
+    }
+}
 }  // namespace pawan
 
 #endif  // WAKE_STRUCT_H

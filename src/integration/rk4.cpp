@@ -91,9 +91,9 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
         x1[i] = states[i];
 
     // k1 = f(x,t)
-    w->setStates(states);
-    w->interact();
-    w->getRates(k1);
+    setStates(w, states);
+    interact(w);
+    getRates(w, k1);
 
     // x1 = x + 0.5*dt*k1
     for (size_t i = 0; i < len; i++) {
@@ -103,9 +103,9 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
     }
 
     // k2 = f(x1, t+0.5*dt)
-    w->setStates(x1);
-    w->interact();
-    w->getRates(k2);
+    setStates(w, x1);
+    interact(w);
+    getRates(w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
     for (size_t i = 0; i < len; i++) {
@@ -115,9 +115,9 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
     }
 
     // k3 = f(x2, t+0.5*dt)
-    w->setStates(x2);
-    w->interact();
-    w->getRates(k3);
+    setStates(w, x2);
+    interact(w);
+    getRates(w, k3);
 
     // x3 = x2 + dt*k3
     for (size_t i = 0; i < len; i++) {
@@ -127,9 +127,9 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
     }
 
     // k4 = f(x3, t+dt)
-    w->setStates(x3);
-    w->interact();
-    w->getRates(k4);
+    setStates(w, x3);
+    interact(w);
+    getRates(w, k4);
 
     for (size_t i = 0; i < len; i++) {
         k1[i] += k4[i];
@@ -142,7 +142,7 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
 
         states[i] += k1[i];
     }
-    w->setStates(states);
+    setStates(w, states);
 
     delete[] x1;
     delete[] x2;
