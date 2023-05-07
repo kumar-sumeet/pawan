@@ -7,6 +7,8 @@
  */
 #include "integration.h"
 
+extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* states, const int len);
+
 pawan::__integration::__integration(const double& t, const size_t& n) {
     _dt = t / n;
     _t = t;
@@ -48,7 +50,7 @@ void pawan::__integration::integrate_cuda(__interaction* S) {
     double tStart = TIME();
     for (size_t i = 1; i <= 2; i++) {
         OUT("\tStep", i);
-        step(_dt, w, state_array, S->_size);  // cuda version step.
+        step_cuda_1(_dt, w, state_array, S->_size);  // cuda version step.
     }
     double tEnd = TIME();
     for (size_t i = 0; i < w->numParticles; i++) {
