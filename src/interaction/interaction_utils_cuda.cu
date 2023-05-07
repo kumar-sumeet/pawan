@@ -242,7 +242,29 @@ __global__ void interact_cuda_1(pawan::wake_cuda* w) {
     }
 }
 
-extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* states, const int len) {
+__global__ void rk4_cal(const double dt, double* x, const double* k, const double* d_states, const int len) {
+    for (size_t i = 0; i < len; i++) {
+        x[i] = k[i];
+        x[i] *= 0.5 * dt;
+        x[i] += d_states[i];
+    }
+}
+
+__global__ void rk4_final(const double dt, double* d_states, double* k1, double* k2, const double* k3, const double* k4, const int len) {
+    for (size_t i = 0; i < len; i++) {
+        k1[i] += k4[i];
+        k1[i] *= dt / 6.;
+
+        k2[i] += k3[i];
+        k2[i] *= dt / 3.;
+
+        k1[i] += k2[i];
+
+        d_states[i] += k1[i];
+    }
+}
+
+extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* h_states, const int len) {
     // declear wake_cuda and malloc memory with cuda unified memory
     pawan::wake_cuda cuda_wake;
     cuda_wake.size = w->size;
@@ -268,6 +290,10 @@ extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* stat
         }
     }
 
+    double* d_states;
+    cudaMalloc(&d_states, sizeof(double) * len);
+    cudaMemcpy(d_states, h_states, sizeof(double) * len, cudaMemcpyHostToDevice);
+
     double *x1, *x2, *x3, *k1, *k2, *k3, *k4;
     cudaMalloc(&x1, sizeof(double) * len);
     cudaMalloc(&x2, sizeof(double) * len);
@@ -277,64 +303,43 @@ extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* stat
     cudaMalloc(&k3, sizeof(double) * len);
     cudaMalloc(&k4, sizeof(double) * len);
 
-    for (size_t i = 0; i < len; i++)
-        x1[i] = states[i];
+    cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
 
     // k1 = f(x,t)
-    setStates_cuda_1<<<1,1>>>(&cuda_wake, states);
-    interact_cuda_1<<<1,1>>>(&cuda_wake);
-    getRates_cuda_1<<<1,1>>>(&cuda_wake, k1);
+    setStates_cuda_1<<<1, 1>>>(&cuda_wake, d_states);
+    interact_cuda_1<<<1, 1>>>(&cuda_wake);
+    getRates_cuda_1<<<1, 1>>>(&cuda_wake, k1);
     //  std::cout << "k1:        " << k1[0] << " " << k1[1] << " " << k1[2] << " " << std::endl;
     // x1 = x + 0.5*dt*k1
-    for (size_t i = 0; i < len; i++) {
-        x1[i] = k1[i];
-        x1[i] *= 0.5 * dt;
-        x1[i] += states[i];
-    }
+    rk4_cal<<<1, 1>>>(dt, x1, k1, d_states, len);
 
     // k2 = f(x1, t+0.5*dt)
-    setStates_cuda_1<<<1,1>>>(&cuda_wake, x1);
-    interact_cuda_1<<<1,1>>>(&cuda_wake);
-    getRates_cuda_1<<<1,1>>>(&cuda_wake, k2);
+    setStates_cuda_1<<<1, 1>>>(&cuda_wake, x1);
+    interact_cuda_1<<<1, 1>>>(&cuda_wake);
+    getRates_cuda_1<<<1, 1>>>(&cuda_wake, k2);
     //  std::cout << "k2:       " << k2[0] << " " << k2[1] << " " << k2[2] << " " << std::endl;
     // x2 = x1 + 0.5*dt*dx2
-    for (size_t i = 0; i < len; i++) {
-        x2[i] = k2[i];
-        x2[i] *= 0.5 * dt;
-        x2[i] += states[i];
-    }
+    rk4_cal<<<1, 1>>>(dt, x2, k2, d_states, len);
     //  std::cout << "x2:        " << x2[0] << " " << x2[1] << " " << x2[2] << " " << std::endl;
+
     // k3 = f(x2, t+0.5*dt)
-    setStates_cuda_1<<<1,1>>>(&cuda_wake, x2);
-    interact_cuda_1<<<1,1>>>(&cuda_wake);
-    getRates_cuda_1<<<1,1>>>(&cuda_wake, k3);
+    setStates_cuda_1<<<1, 1>>>(&cuda_wake, x2);
+    interact_cuda_1<<<1, 1>>>(&cuda_wake);
+    getRates_cuda_1<<<1, 1>>>(&cuda_wake, k3);
     //  std::cout << "velocity: " << w->velocity[0][0] << " " << w->velocity[0][1] << " " << w->velocity[0][2] << " " << std::endl;
     //  std::cout << "k3:       " << k3[0] << " " << k3[1] << " " << k3[2] << " " << std::endl;
 
     // x3 = x2 + dt*k3
-    for (size_t i = 0; i < len; i++) {
-        x3[i] = k3[i];
-        x3[i] *= dt;
-        x3[i] += states[i];
-    }
+    rk4_cal<<<1, 1>>>(dt, x3, k3, d_states, len);
 
     // k4 = f(x3, t+dt)
-    setStates_cuda_1<<<1,1>>>(&cuda_wake, x3);
-    interact_cuda_1<<<1,1>>>(&cuda_wake);
-    getRates_cuda_1<<<1,1>>>(&cuda_wake, k4);
+    setStates_cuda_1<<<1, 1>>>(&cuda_wake, x3);
+    interact_cuda_1<<<1, 1>>>(&cuda_wake);
+    getRates_cuda_1<<<1, 1>>>(&cuda_wake, k4);
 
-    for (size_t i = 0; i < len; i++) {
-        k1[i] += k4[i];
-        k1[i] *= dt / 6.;
+    rk4_final <<<1, 1>>>(dt, d_states, k1, k2, k3, k4, len);
 
-        k2[i] += k3[i];
-        k2[i] *= dt / 3.;
-
-        k1[i] += k2[i];
-
-        states[i] += k1[i];
-    }
-    setStates_cuda_1<<<1,1>>>(&cuda_wake, states);
+    setStates_cuda_1<<<1, 1>>>(&cuda_wake, d_states);
 
     cudaFree(cuda_wake.radius);
     cudaFree(cuda_wake.volume);
@@ -343,6 +348,7 @@ extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* stat
     cudaFree(cuda_wake.velocity);
     cudaFree(cuda_wake.vorticity);
     cudaFree(cuda_wake.retvorcity);
+    cudaFree(d_states);
     cudaFree(x1);
     cudaFree(x2);
     cudaFree(x3);

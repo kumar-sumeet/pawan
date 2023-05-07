@@ -58,6 +58,7 @@ void pawan::__integration::integrate_cuda(__interaction* S) {
     }
     OUT("Total Time (s)", tEnd - tStart);
     delete w;
+    delete [] state_array;
     gsl_vector_free(states);
 }
 
