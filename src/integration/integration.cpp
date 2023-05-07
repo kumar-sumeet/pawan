@@ -7,7 +7,7 @@
  */
 #include "integration.h"
 
-extern "C" void step_cuda_1(const double dt, pawan::wake_struct* w, double* states, const int len);
+extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, const double* state_array);
 
 pawan::__integration::__integration(const double& t, const size_t& n) {
     _dt = t / n;
@@ -47,18 +47,9 @@ void pawan::__integration::integrate_cuda(__interaction* S) {
     vectorToArray(states, state_array);
     pawan::__wake* wake = S->getWake();
     wake_struct* w = new wake_struct(wake);
-    double tStart = TIME();
-    for (size_t i = 1; i <= 2; i++) {
-        OUT("\tStep", i);
-        step_cuda_1(_dt, w, state_array, S->_size);  // cuda version step.
-    }
-    double tEnd = TIME();
-    for (size_t i = 0; i < w->numParticles; i++) {
-        std::cout << w->position[i][0] << " " << w->position[i][1] << " " << w->position[i][2] << " " << std::endl;
-    }
-    OUT("Total Time (s)", tEnd - tStart);
+    cuda_step_wrapper(_dt, w, state_array);
     delete w;
-    delete [] state_array;
+    delete[] state_array;
     gsl_vector_free(states);
 }
 
