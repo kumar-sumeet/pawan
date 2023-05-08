@@ -22,8 +22,14 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     fwrite(&t, sizeof(double), 1, f);
     S->write(f);
     S->getStates(states);
+
+    pawan::__wake* wake = S->getWake();
+    // for (size_t i = 0; i < wake->_numParticles; i++) {
+    //     std::cout << gsl_matrix_get(wake->_position, i, 0) << " " << gsl_matrix_get(wake->_position, i, 1) << " " << gsl_matrix_get(wake->_position, i, 2) << " " << std::endl;
+    // }
+
     double tStart = TIME();
-    for (size_t i = 1; i <= 2; ++i) {
+    for (size_t i = 1; i <= 1; ++i) {
         OUT("\tStep", i);
         t = i * _dt;
         step(_dt, S, states);
@@ -32,11 +38,12 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     }
     fclose(f);
     double tEnd = TIME();
-    pawan::__wake* wake = S->getWake();
+    OUT("Total Time (s)", tEnd - tStart);
+
     for (size_t i = 0; i < wake->_numParticles; i++) {
         std::cout << gsl_matrix_get(wake->_position, i, 0) << " " << gsl_matrix_get(wake->_position, i, 1) << " " << gsl_matrix_get(wake->_position, i, 2) << " " << std::endl;
     }
-    OUT("Total Time (s)", tEnd - tStart);
+
     gsl_vector_free(states);
 }
 

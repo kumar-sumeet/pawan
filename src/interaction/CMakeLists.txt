@@ -3,7 +3,7 @@ set(INTERACTION_SOURCES interaction.cpp parallel.cpp interaction_utils_cuda.cu)
 
 # Compile step_cuda_wrapper.cu using nvcc
 find_package(CUDA REQUIRED)
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-O3")
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-O3 -arch=sm_60 -lcudart")
 cuda_add_library(interaction SHARED ${INTERACTION_SOURCES})
 target_compile_features(interaction PUBLIC cxx_constexpr)
 
