@@ -58,6 +58,9 @@ __device__ void VORSTRETCH_CUDA_1(const double& q,
     double roaxa = 0.0;
     for (size_t i = 0; i < 3; i++) {
         roaxa += displacement[i] * trgXsrc[i];
+    }
+
+    for (size_t i = 0; i < 3; i++) {
         stretch[i] = displacement[i] * F * roaxa;
     }
 
@@ -122,6 +125,8 @@ __device__ void INTERACT_CUDA_1(
 
     // velocity computation
     double* dr = (double*)malloc(sizeof(double) * 3);
+    for (size_t i = 0; i < 3; i++)
+        dr[i] = 0.0;
     // target
     KERNEL_CUDA_1(rho, sigma, q, F, Z);
     VELOCITY_CUDA_1(q, a_source, displacement, dr);
@@ -176,8 +181,7 @@ __global__ void getStates_cuda_1(pawan::wake_cuda w, double* state) {
         for (size_t j = 0; j < numDimensions; j++) {
             size_t ind = i * numDimensions + j;
             state[ind] = w.position[ind];
-            ind += w.size / 2;
-            state[ind] = w.vorticity[ind];
+            state[ind +  w.size / 2] = w.vorticity[ind];
         }
     }
 }
@@ -189,8 +193,7 @@ __global__ void getRates_cuda_1(pawan::wake_cuda w, double* rate) {
         for (size_t j = 0; j < numDimensions; j++) {
             size_t ind = i * numDimensions + j;
             rate[ind] = w.velocity[ind];
-            ind += w.size / 2;
-            rate[ind] = w.retvorcity[ind];
+            rate[ind +  w.size / 2] = w.retvorcity[ind];
         }
     }
 }
@@ -231,13 +234,9 @@ __global__ void interact_cuda_1(pawan::wake_cuda w) {
 
             INTERACT_CUDA_1(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
             for (size_t j = 0; j < numDimensions; j++) {
-                w.position[i_src * numDimensions + j] = r_src[j];
-                w.vorticity[i_src * numDimensions + j] = a_src[j];
                 w.velocity[i_src * numDimensions + j] = dr_src[j];
                 w.retvorcity[i_src * numDimensions + j] = da_src[j];
 
-                w.position[i_trg * numDimensions + j] = r_trg[j];
-                w.vorticity[i_trg * numDimensions + j] = a_trg[j];
                 w.velocity[i_trg * numDimensions + j] = dr_trg[j];
                 w.retvorcity[i_trg * numDimensions + j] = da_trg[j];
             }
