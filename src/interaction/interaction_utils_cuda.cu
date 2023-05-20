@@ -181,7 +181,7 @@ __global__ void getStates_cuda_1(pawan::wake_cuda w, double* state) {
         for (size_t j = 0; j < numDimensions; j++) {
             size_t ind = i * numDimensions + j;
             state[ind] = w.position[ind];
-            state[ind +  w.size / 2] = w.vorticity[ind];
+            state[ind + w.size / 2] = w.vorticity[ind];
         }
     }
 }
@@ -193,7 +193,7 @@ __global__ void getRates_cuda_1(pawan::wake_cuda w, double* rate) {
         for (size_t j = 0; j < numDimensions; j++) {
             size_t ind = i * numDimensions + j;
             rate[ind] = w.velocity[ind];
-            rate[ind +  w.size / 2] = w.retvorcity[ind];
+            rate[ind + w.size / 2] = w.retvorcity[ind];
         }
     }
 }
@@ -252,10 +252,10 @@ __global__ void interact_cuda_1(pawan::wake_cuda w) {
     }
 }
 
-__global__ void rk4_process(const double dt, double* x, const double* k, const double* d_states, const int len) {
+__global__ void rk4_process(const double dt, double* x, const double* k, const double* d_states, const double factor, const int len) {
     for (size_t i = 0; i < len; i++) {
         x[i] = k[i];
-        x[i] *= 0.5 * dt;
+        x[i] *= factor * dt;
         x[i] += d_states[i];
     }
 }
@@ -274,7 +274,9 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
     }
 }
 
-void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, const int len) {
+void step_cuda_1(const double dt, pawan::wake_cuda* w, double* h_states, const int len) {
+    double factor1 = 0.5, factor2 = 1.0;
+
     double* d_states;
     cudaMalloc(&d_states, sizeof(double) * len);
     cudaMemcpy(d_states, h_states, sizeof(double) * len, cudaMemcpyHostToDevice);
@@ -297,7 +299,7 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, c
     // printf("%lf, %lf, %lf\n", w->position[0], w->position[1], w->position[2]);
 
     // x1 = x + 0.5*dt*k1
-    rk4_process<<<1, 1>>>(dt, x1, k1, d_states, len);
+    rk4_process<<<1, 1>>>(dt, x1, k1, d_states, factor1, len);
 
     // k2 = f(x1, t+0.5*dt)
     setStates_cuda_1<<<1, 1>>>(*w, x1);
@@ -305,7 +307,7 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, c
     getRates_cuda_1<<<1, 1>>>(*w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
-    rk4_process<<<1, 1>>>(dt, x2, k2, d_states, len);
+    rk4_process<<<1, 1>>>(dt, x2, k2, d_states, factor1, len);
 
     // k3 = f(x2, t+0.5*dt)
     setStates_cuda_1<<<1, 1>>>(*w, x2);
@@ -313,7 +315,7 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, c
     getRates_cuda_1<<<1, 1>>>(*w, k3);
 
     // x3 = x2 + dt*k3
-    rk4_process<<<1, 1>>>(dt, x3, k3, d_states, len);
+    rk4_process<<<1, 1>>>(dt, x3, k3, d_states, factor2, len);
 
     // k4 = f(x3, t+dt)
     setStates_cuda_1<<<1, 1>>>(*w, x3);
@@ -324,6 +326,7 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, c
 
     setStates_cuda_1<<<1, 1>>>(*w, d_states);
 
+    cudaMemcpy(h_states, d_states, sizeof(double) * len, cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
     cudaFree(d_states);
     cudaFree(x1);
@@ -335,7 +338,7 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, const double* h_states, c
     cudaFree(k4);
 }
 
-extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, const double* state_array) {
+extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array) {
     pawan::wake_cuda cuda_wake;
     cuda_wake.size = w->size;
     cuda_wake.numParticles = w->numParticles;
@@ -361,7 +364,7 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, const
     }
 
     double tStart = TIME();
-    for (size_t i = 1; i <= 1; i++) {
+    for (size_t i = 1; i <= 64; i++) {
         OUT("\tStep", i);
         step_cuda_1(_dt, &cuda_wake, state_array, w->size);  // cuda version step.
     }

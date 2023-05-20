@@ -29,7 +29,7 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     // }
 
     double tStart = TIME();
-    for (size_t i = 1; i <= 1; ++i) {
+    for (size_t i = 1; i <= 64; ++i) {
         OUT("\tStep", i);
         t = i * _dt;
         step(_dt, S, states);
