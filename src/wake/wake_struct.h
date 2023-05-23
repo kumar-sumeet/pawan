@@ -173,7 +173,7 @@ inline void interact(wake_struct* w) {
             double s_trg = w->radius[i_trg];
             double v_trg = w->volume[i_trg];
 
-            INTERACT_CUDA(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
+            INTERACT_GSL_FREE(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
             for (size_t j = 0; j < numDimensions; j++) {
                 w->position[i_src][j] = r_src[j];
                 w->vorticity[i_src][j] = a_src[j];

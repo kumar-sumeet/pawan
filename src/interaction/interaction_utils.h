@@ -347,11 +347,11 @@ inline double euclidean_norm(const double* x, std::size_t n) {
     return std::sqrt(sum_of_squares);
 }
 
-inline void KERNEL_CUDA(const double& rho,
-                        const double& sigma,
-                        double& q,
-                        double& F,
-                        double& Z) {
+inline void KERNEL_GSL_FREE(const double& rho,
+                            const double& sigma,
+                            double& q,
+                            double& F,
+                            double& Z) {
     double rho_bar = rho / sigma;
     double sig3 = sigma * sigma * sigma;
     double phi = 0.25 * M_1_PI * erf(M_SQRT1_2 * rho_bar) / sig3;
@@ -360,10 +360,10 @@ inline void KERNEL_CUDA(const double& rho,
     F = (Z - 3 * q) / (rho * rho);
 };
 
-inline void VELOCITY_CUDA(const double& kernel,
-                          const double* vorticity,
-                          const double* displacement,
-                          double* velocity) {
+inline void VELOCITY_GSL_FREE(const double& kernel,
+                              const double* vorticity,
+                              const double* displacement,
+                              double* velocity) {
     velocity[0] = vorticity[1] * displacement[2] - vorticity[2] * displacement[1];
     velocity[1] = vorticity[2] * displacement[0] - vorticity[0] * displacement[2];
     velocity[2] = vorticity[0] * displacement[1] - vorticity[1] * displacement[0];
@@ -371,12 +371,12 @@ inline void VELOCITY_CUDA(const double& kernel,
         velocity[i] *= kernel;
 };
 
-inline void VORSTRETCH_CUDA(const double& q,
-                            const double& F,
-                            const double* source_vorticity,
-                            const double* target_vorticity,
-                            const double* displacement,
-                            double* retvorcity) {
+inline void VORSTRETCH_GSL_FREE(const double& q,
+                                const double& F,
+                                const double* source_vorticity,
+                                const double* target_vorticity,
+                                const double* displacement,
+                                double* retvorcity) {
     double* trgXsrc = new double[3];
     trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
@@ -391,6 +391,9 @@ inline void VORSTRETCH_CUDA(const double& q,
     double roaxa = 0.0;
     for (size_t i = 0; i < 3; i++) {
         roaxa += displacement[i] * trgXsrc[i];
+    }
+
+    for (size_t i = 0; i < 3; i++) {
         stretch[i] = displacement[i] * F * roaxa;
     }
 
@@ -402,14 +405,14 @@ inline void VORSTRETCH_CUDA(const double& q,
     delete[] stretch;
 };
 
-inline void DIFFUSION_CUDA(const double& nu,
-                           const double& sigma,
-                           const double& Z,
-                           const double* source_vorticity,
-                           const double* target_vorticity,
-                           const double& source_volume,
-                           const double& target_volume,
-                           double* retvorcity) {
+inline void DIFFUSION_GSL_FREE(const double& nu,
+                               const double& sigma,
+                               const double& Z,
+                               const double* source_vorticity,
+                               const double* target_vorticity,
+                               const double& source_volume,
+                               const double& target_volume,
+                               double* retvorcity) {
     double* va12 = new double[3];
     double* va21 = new double[3];
     double* dva = new double[3];
@@ -431,7 +434,7 @@ inline void DIFFUSION_CUDA(const double& nu,
     delete[] dva;
 }
 
-inline void INTERACT_CUDA(
+inline void INTERACT_GSL_FREE(
     const double& nu,
     const double& s_source,
     const double& s_target,
@@ -456,13 +459,13 @@ inline void INTERACT_CUDA(
     // velocity computation
     double* dr = new double[3];
     // target
-    KERNEL_CUDA(rho, sigma, q, F, Z);
-    VELOCITY_CUDA(q, a_source, displacement, dr);
+    KERNEL_GSL_FREE(rho, sigma, q, F, Z);
+    VELOCITY_GSL_FREE(q, a_source, displacement, dr);
     for (size_t i = 0; i < 3; i++)
         dr_target[i] += dr[i];
 
     // source
-    VELOCITY_CUDA(-q, a_target, displacement, dr);
+    VELOCITY_GSL_FREE(-q, a_target, displacement, dr);
     for (size_t i = 0; i < 3; i++)
         dr_source[i] += dr[i];
 
@@ -471,8 +474,8 @@ inline void INTERACT_CUDA(
     for (size_t i = 0; i < 3; i++)
         da[i] = 0.0;
 
-    VORSTRETCH_CUDA(q, F, a_source, a_target, displacement, da);
-    DIFFUSION_CUDA(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
+    VORSTRETCH_GSL_FREE(q, F, a_source, a_target, displacement, da);
+    DIFFUSION_GSL_FREE(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
 
     // Target and source
     for (size_t i = 0; i < 3; i++) {

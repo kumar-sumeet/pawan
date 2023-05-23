@@ -14,11 +14,11 @@ __device__ double euclidean_norm_cuda(const double* x, std::size_t n) {
     return std::sqrt(sum_of_squares);
 }
 
-__device__ void KERNEL_CUDA_1(const double& rho,
-                              const double& sigma,
-                              double& q,
-                              double& F,
-                              double& Z) {
+__device__ void KERNEL_CUDA(const double& rho,
+                            const double& sigma,
+                            double& q,
+                            double& F,
+                            double& Z) {
     double rho_bar = rho / sigma;
     double sig3 = sigma * sigma * sigma;
     double phi = 0.25 * M_1_PI * erf(M_SQRT1_2 * rho_bar) / sig3;
@@ -27,10 +27,10 @@ __device__ void KERNEL_CUDA_1(const double& rho,
     F = (Z - 3 * q) / (rho * rho);
 };
 
-__device__ void VELOCITY_CUDA_1(const double& kernel,
-                                const double* vorticity,
-                                const double* displacement,
-                                double* velocity) {
+__device__ void VELOCITY_CUDA(const double& kernel,
+                              const double* vorticity,
+                              const double* displacement,
+                              double* velocity) {
     velocity[0] = vorticity[1] * displacement[2] - vorticity[2] * displacement[1];
     velocity[1] = vorticity[2] * displacement[0] - vorticity[0] * displacement[2];
     velocity[2] = vorticity[0] * displacement[1] - vorticity[1] * displacement[0];
@@ -38,12 +38,12 @@ __device__ void VELOCITY_CUDA_1(const double& kernel,
         velocity[i] *= kernel;
 };
 
-__device__ void VORSTRETCH_CUDA_1(const double& q,
-                                  const double& F,
-                                  const double* source_vorticity,
-                                  const double* target_vorticity,
-                                  const double* displacement,
-                                  double* retvorcity) {
+__device__ void VORSTRETCH_CUDA(const double& q,
+                                const double& F,
+                                const double* source_vorticity,
+                                const double* target_vorticity,
+                                const double* displacement,
+                                double* retvorcity) {
     double* trgXsrc = (double*)malloc(sizeof(double) * 3);
     trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
@@ -72,14 +72,14 @@ __device__ void VORSTRETCH_CUDA_1(const double& q,
     free(stretch);
 };
 
-__device__ void DIFFUSION_CUDA_1(const double& nu,
-                                 const double& sigma,
-                                 const double& Z,
-                                 const double* source_vorticity,
-                                 const double* target_vorticity,
-                                 const double& source_volume,
-                                 const double& target_volume,
-                                 double* retvorcity) {
+__device__ void DIFFUSION_CUDA(const double& nu,
+                               const double& sigma,
+                               const double& Z,
+                               const double* source_vorticity,
+                               const double* target_vorticity,
+                               const double& source_volume,
+                               const double& target_volume,
+                               double* retvorcity) {
     double* va12 = (double*)malloc(sizeof(double) * 3);
     double* va21 = (double*)malloc(sizeof(double) * 3);
     double* dva = (double*)malloc(sizeof(double) * 3);
@@ -101,7 +101,7 @@ __device__ void DIFFUSION_CUDA_1(const double& nu,
     free(dva);
 }
 
-__device__ void INTERACT_CUDA_1(
+__device__ void INTERACT_CUDA(
     const double& nu,
     const double& s_source,
     const double& s_target,
@@ -128,13 +128,13 @@ __device__ void INTERACT_CUDA_1(
     for (size_t i = 0; i < 3; i++)
         dr[i] = 0.0;
     // target
-    KERNEL_CUDA_1(rho, sigma, q, F, Z);
-    VELOCITY_CUDA_1(q, a_source, displacement, dr);
+    KERNEL_CUDA(rho, sigma, q, F, Z);
+    VELOCITY_CUDA(q, a_source, displacement, dr);
     for (size_t i = 0; i < 3; i++)
         dr_target[i] += dr[i];
 
     // source
-    VELOCITY_CUDA_1(-q, a_target, displacement, dr);
+    VELOCITY_CUDA(-q, a_target, displacement, dr);
     for (size_t i = 0; i < 3; i++)
         dr_source[i] += dr[i];
 
@@ -143,8 +143,8 @@ __device__ void INTERACT_CUDA_1(
     for (size_t i = 0; i < 3; i++)
         da[i] = 0.0;
 
-    VORSTRETCH_CUDA_1(q, F, a_source, a_target, displacement, da);
-    DIFFUSION_CUDA_1(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
+    VORSTRETCH_CUDA(q, F, a_source, a_target, displacement, da);
+    DIFFUSION_CUDA(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
 
     // Target and source
     for (size_t i = 0; i < 3; i++) {
@@ -156,7 +156,7 @@ __device__ void INTERACT_CUDA_1(
     free(displacement);
 }
 
-__global__ void setStates_cuda_1(pawan::wake_cuda w, const double* state) {
+__global__ void setStates_cuda(pawan::wake_cuda w, const double* state) {
     size_t numDimensions = w.numDimensions;
     size_t np = w.size / 2 / numDimensions;
     size_t matrixsize = np * numDimensions;
@@ -174,7 +174,7 @@ __global__ void setStates_cuda_1(pawan::wake_cuda w, const double* state) {
     }
 }
 
-__global__ void getStates_cuda_1(pawan::wake_cuda w, double* state) {
+__global__ void getStates_cuda(pawan::wake_cuda w, double* state) {
     size_t numDimensions = w.numDimensions;
     size_t numParticles = w.numParticles;
     for (size_t i = 0; i < numParticles; i++) {
@@ -186,7 +186,7 @@ __global__ void getStates_cuda_1(pawan::wake_cuda w, double* state) {
     }
 }
 
-__global__ void getRates_cuda_1(pawan::wake_cuda w, double* rate) {
+__global__ void getRates_cuda(pawan::wake_cuda w, double* rate) {
     size_t numDimensions = w.numDimensions;
     size_t numParticles = w.numParticles;
     for (size_t i = 0; i < numParticles; i++) {
@@ -198,7 +198,7 @@ __global__ void getRates_cuda_1(pawan::wake_cuda w, double* rate) {
     }
 }
 
-__global__ void interact_cuda_1(pawan::wake_cuda w) {
+__global__ void interact_cuda(pawan::wake_cuda w) {
     size_t numDimensions = w.numDimensions;
     size_t numParticles = w.numParticles;
     for (size_t i = 0; i < numParticles; i++)
@@ -218,7 +218,7 @@ __global__ void interact_cuda_1(pawan::wake_cuda w) {
         }
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
-        for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {
+        for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {  // n * (n - 1) might be difficult to parallize
             double* r_trg = (double*)malloc(sizeof(double) * numDimensions);
             double* a_trg = (double*)malloc(sizeof(double) * numDimensions);
             double* dr_trg = (double*)malloc(sizeof(double) * numDimensions);
@@ -232,7 +232,7 @@ __global__ void interact_cuda_1(pawan::wake_cuda w) {
             double s_trg = w.radius[i_trg];
             double v_trg = w.volume[i_trg];
 
-            INTERACT_CUDA_1(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
+            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
             for (size_t j = 0; j < numDimensions; j++) {
                 w.velocity[i_src * numDimensions + j] = dr_src[j];
                 w.retvorcity[i_src * numDimensions + j] = da_src[j];
@@ -274,7 +274,7 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
     }
 }
 
-void step_cuda_1(const double dt, pawan::wake_cuda* w, double* h_states, const int len) {
+void step_cuda(const double dt, pawan::wake_cuda* w, double* h_states, const int len) {
     double factor1 = 0.5, factor2 = 1.0;
 
     double* d_states;
@@ -293,38 +293,38 @@ void step_cuda_1(const double dt, pawan::wake_cuda* w, double* h_states, const i
     cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
 
     // k1 = f(x,t)
-    setStates_cuda_1<<<1, 1>>>(*w, d_states);
-    interact_cuda_1<<<1, 1>>>(*w);
-    getRates_cuda_1<<<1, 1>>>(*w, k1);
+    setStates_cuda<<<1, 1>>>(*w, d_states);
+    interact_cuda<<<1, 1>>>(*w);
+    getRates_cuda<<<1, 1>>>(*w, k1);
     // printf("%lf, %lf, %lf\n", w->position[0], w->position[1], w->position[2]);
 
     // x1 = x + 0.5*dt*k1
     rk4_process<<<1, 1>>>(dt, x1, k1, d_states, factor1, len);
 
     // k2 = f(x1, t+0.5*dt)
-    setStates_cuda_1<<<1, 1>>>(*w, x1);
-    interact_cuda_1<<<1, 1>>>(*w);
-    getRates_cuda_1<<<1, 1>>>(*w, k2);
+    setStates_cuda<<<1, 1>>>(*w, x1);
+    interact_cuda<<<1, 1>>>(*w);
+    getRates_cuda<<<1, 1>>>(*w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
     rk4_process<<<1, 1>>>(dt, x2, k2, d_states, factor1, len);
 
     // k3 = f(x2, t+0.5*dt)
-    setStates_cuda_1<<<1, 1>>>(*w, x2);
-    interact_cuda_1<<<1, 1>>>(*w);
-    getRates_cuda_1<<<1, 1>>>(*w, k3);
+    setStates_cuda<<<1, 1>>>(*w, x2);
+    interact_cuda<<<1, 1>>>(*w);
+    getRates_cuda<<<1, 1>>>(*w, k3);
 
     // x3 = x2 + dt*k3
     rk4_process<<<1, 1>>>(dt, x3, k3, d_states, factor2, len);
 
     // k4 = f(x3, t+dt)
-    setStates_cuda_1<<<1, 1>>>(*w, x3);
-    interact_cuda_1<<<1, 1>>>(*w);
-    getRates_cuda_1<<<1, 1>>>(*w, k4);
+    setStates_cuda<<<1, 1>>>(*w, x3);
+    interact_cuda<<<1, 1>>>(*w);
+    getRates_cuda<<<1, 1>>>(*w, k4);
 
     rk4_final<<<1, 1>>>(dt, d_states, k1, k2, k3, k4, len);
 
-    setStates_cuda_1<<<1, 1>>>(*w, d_states);
+    setStates_cuda<<<1, 1>>>(*w, d_states);
 
     cudaMemcpy(h_states, d_states, sizeof(double) * len, cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
@@ -366,7 +366,7 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
     double tStart = TIME();
     for (size_t i = 1; i <= 64; i++) {
         OUT("\tStep", i);
-        step_cuda_1(_dt, &cuda_wake, state_array, w->size);  // cuda version step.
+        step_cuda(_dt, &cuda_wake, state_array, w->size);
     }
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);

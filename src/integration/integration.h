@@ -58,6 +58,8 @@ class __integration {
      */
     void integrate(__interaction* S, __io* IO);
 
+    void integrate_gsl_free(__interaction* S);
+
     void integrate_cuda(__interaction* S);
 };
 }  // namespace pawan

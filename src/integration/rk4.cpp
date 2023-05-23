@@ -25,7 +25,7 @@ void pawan::__rk4::step(const double& dt, __interaction* S, gsl_vector* states) 
     S->setStates(states);
     S->interact();
     S->getRates(k1);
-    // std::cout << "k1:       " << gsl_vector_get(k1, 0) << " " << gsl_vector_get(k1, 1) << " " << gsl_vector_get(k1, 2) << " " << std::endl;
+
     // x1 = x + 0.5*dt*k1
     gsl_vector_memcpy(x1, k1);
     gsl_vector_scale(x1, 0.5 * dt);
@@ -35,19 +35,16 @@ void pawan::__rk4::step(const double& dt, __interaction* S, gsl_vector* states) 
     S->setStates(x1);
     S->interact();
     S->getRates(k2);
-    // std::cout << "k2:       " << gsl_vector_get(k2, 0) << " " << gsl_vector_get(k2, 1) << " " << gsl_vector_get(k2, 2) << " " << std::endl;
+
     // x2 = x1 + 0.5*dt*dx2
     gsl_vector_memcpy(x2, k2);
     gsl_vector_scale(x2, 0.5 * dt);
     gsl_vector_add(x2, states);
-    // std::cout << "x2:       " << gsl_vector_get(x2, 0) << " " << gsl_vector_get(x2, 1) << " " << gsl_vector_get(x2, 2) << " " << std::endl;
+
     // k3 = f(x2,t+0.5*dt)
     S->setStates(x2);
     S->interact();
     S->getRates(k3);
-    // pawan::__wake* wake = S->getWake();
-    // std::cout << "velocity: " << gsl_matrix_get(wake->_velocity, 0, 0) << " " << gsl_matrix_get(wake->_velocity, 0, 1) << " " << gsl_matrix_get(wake->_velocity, 0, 2) << " " << std::endl;
-    // std::cout << "k3:       " << gsl_vector_get(k3, 0) << " " << gsl_vector_get(k3, 1) << " " << gsl_vector_get(k3, 2) << " " << std::endl;
 
     // x3 = x2 + dt*k3
     gsl_vector_memcpy(x3, k3);
@@ -97,7 +94,7 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
     setStates(w, states);
     interact(w);
     getRates(w, k1);
-    std::cout << "k1:        " << k1[0] << " " << k1[1] << " " << k1[2] << " " << std::endl;
+
     // x1 = x + 0.5*dt*k1
     for (size_t i = 0; i < len; i++) {
         x1[i] = k1[i];
@@ -109,20 +106,18 @@ void pawan::__rk4::step(const double& dt, wake_struct* w, double* states, const 
     setStates(w, x1);
     interact(w);
     getRates(w, k2);
-    std::cout << "k2:       " << k2[0] << " " << k2[1] << " " << k2[2] << " " << std::endl;
+
     // x2 = x1 + 0.5*dt*dx2
     for (size_t i = 0; i < len; i++) {
         x2[i] = k2[i];
         x2[i] *= 0.5 * dt;
         x2[i] += states[i];
     }
-    std::cout << "x2:        " << x2[0] << " " << x2[1] << " " << x2[2] << " " << std::endl;
+
     // k3 = f(x2, t+0.5*dt)
     setStates(w, x2);
     interact(w);
     getRates(w, k3);
-    std::cout << "velocity: " << w->velocity[0][0] << " " << w->velocity[0][1] << " " << w->velocity[0][2] << " " << std::endl;
-    std::cout << "k3:       " << k3[0] << " " << k3[1] << " " << k3[2] << " " << std::endl;
 
     // x3 = x2 + dt*k3
     for (size_t i = 0; i < len; i++) {
