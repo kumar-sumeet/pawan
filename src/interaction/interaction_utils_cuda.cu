@@ -159,44 +159,29 @@ __device__ void INTERACT_CUDA(
 }
 
 __global__ void setStates_cuda(pawan::wake_cuda w, const double* state) {
-    size_t numDimensions = w.numDimensions;
-    size_t np = w.size / 2 / numDimensions;
-    size_t matrixsize = np * numDimensions;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    for (size_t i = 0; i < np; i++) {
-        for (size_t j = 0; j < numDimensions; j++) {
-            w.position[i * numDimensions + j] = state[i * numDimensions + j];
-        }
-    }
-
-    for (size_t i = 0; i < np; i++) {
-        for (size_t j = 0; j < numDimensions; j++) {
-            w.vorticity[i * numDimensions + j] = state[i * numDimensions + j + matrixsize];
-        }
+    if (tid < w.size / 2) {
+        w.position[tid] = state[tid];
+        w.vorticity[tid] = state[tid + w.size / 2];
     }
 }
 
 __global__ void getStates_cuda(pawan::wake_cuda w, double* state) {
-    size_t numDimensions = w.numDimensions;
-    size_t numParticles = w.numParticles;
-    for (size_t i = 0; i < numParticles; i++) {
-        for (size_t j = 0; j < numDimensions; j++) {
-            size_t ind = i * numDimensions + j;
-            state[ind] = w.position[ind];
-            state[ind + w.size / 2] = w.vorticity[ind];
-        }
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < w.size / 2) {
+        state[tid] = w.position[tid];
+        state[tid + w.size / 2] = w.vorticity[tid];
     }
 }
 
 __global__ void getRates_cuda(pawan::wake_cuda w, double* rate) {
-    size_t numDimensions = w.numDimensions;
-    size_t numParticles = w.numParticles;
-    for (size_t i = 0; i < numParticles; i++) {
-        for (size_t j = 0; j < numDimensions; j++) {
-            size_t ind = i * numDimensions + j;
-            rate[ind] = w.velocity[ind];
-            rate[ind + w.size / 2] = w.retvorcity[ind];
-        }
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < w.size / 2) {
+        rate[tid] = w.velocity[tid];
+        rate[tid + w.size / 2] = w.retvorcity[tid];
     }
 }
 
@@ -279,39 +264,42 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
 void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x1, double* x2, double* x3, double* k1, double* k2, double* k3, double* k4, const int len) {
     cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
 
+    int blockSize = 256;
+    int numBlocks_states = (len / 2 + blockSize - 1) / blockSize;
+
     // k1 = f(x,t)
-    setStates_cuda<<<1, 1>>>(*w, d_states);
+    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
     interact_cuda<<<1, 1>>>(*w);
-    getRates_cuda<<<1, 1>>>(*w, k1);
+    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k1);
     // printf("%lf, %lf, %lf\n", w->position[0], w->position[1], w->position[2]);
 
     // x1 = x + 0.5*dt*k1
     rk4_process<<<1, 1>>>(dt, x1, k1, d_states, factor1, len);
 
     // k2 = f(x1, t+0.5*dt)
-    setStates_cuda<<<1, 1>>>(*w, x1);
+    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x1);
     interact_cuda<<<1, 1>>>(*w);
-    getRates_cuda<<<1, 1>>>(*w, k2);
+    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
     rk4_process<<<1, 1>>>(dt, x2, k2, d_states, factor1, len);
 
     // k3 = f(x2, t+0.5*dt)
-    setStates_cuda<<<1, 1>>>(*w, x2);
+    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x2);
     interact_cuda<<<1, 1>>>(*w);
-    getRates_cuda<<<1, 1>>>(*w, k3);
+    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k3);
 
     // x3 = x2 + dt*k3
     rk4_process<<<1, 1>>>(dt, x3, k3, d_states, factor2, len);
 
     // k4 = f(x3, t+dt)
-    setStates_cuda<<<1, 1>>>(*w, x3);
+    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x3);
     interact_cuda<<<1, 1>>>(*w);
-    getRates_cuda<<<1, 1>>>(*w, k4);
+    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k4);
 
     rk4_final<<<1, 1>>>(dt, d_states, k1, k2, k3, k4, len);
 
-    setStates_cuda<<<1, 1>>>(*w, d_states);
+    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
 
     cudaDeviceSynchronize();
 }
