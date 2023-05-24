@@ -6,6 +6,8 @@
 #include "src/utils/timing_utils.h"
 #include "src/wake/wake_struct.h"
 
+static const double factor1 = 0.5, factor2 = 1.0;
+
 __device__ double euclidean_norm_cuda(const double* x, std::size_t n) {
     double sum_of_squares = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
@@ -274,22 +276,7 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
     }
 }
 
-void step_cuda(const double dt, pawan::wake_cuda* w, double* h_states, const int len) {
-    double factor1 = 0.5, factor2 = 1.0;
-
-    double* d_states;
-    cudaMalloc(&d_states, sizeof(double) * len);
-    cudaMemcpy(d_states, h_states, sizeof(double) * len, cudaMemcpyHostToDevice);
-
-    double *x1, *x2, *x3, *k1, *k2, *k3, *k4;
-    cudaMalloc(&x1, sizeof(double) * len);
-    cudaMalloc(&x2, sizeof(double) * len);
-    cudaMalloc(&x3, sizeof(double) * len);
-    cudaMalloc(&k1, sizeof(double) * len);
-    cudaMalloc(&k2, sizeof(double) * len);
-    cudaMalloc(&k3, sizeof(double) * len);
-    cudaMalloc(&k4, sizeof(double) * len);
-
+void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x1, double* x2, double* x3, double* k1, double* k2, double* k3, double* k4, const int len) {
     cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
 
     // k1 = f(x,t)
@@ -326,19 +313,11 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* h_states, const int
 
     setStates_cuda<<<1, 1>>>(*w, d_states);
 
-    cudaMemcpy(h_states, d_states, sizeof(double) * len, cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
-    cudaFree(d_states);
-    cudaFree(x1);
-    cudaFree(x2);
-    cudaFree(x3);
-    cudaFree(k1);
-    cudaFree(k2);
-    cudaFree(k3);
-    cudaFree(k4);
 }
 
 extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array) {
+    // TODO: replace cudaMallocManaged with cudaMalloc for wake_cuda
     pawan::wake_cuda cuda_wake;
     cuda_wake.size = w->size;
     cuda_wake.numParticles = w->numParticles;
@@ -363,10 +342,23 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
         }
     }
 
+    double* d_states;
+    cudaMalloc(&d_states, sizeof(double) * w->size);
+    cudaError_t cudaStatus = cudaMemcpy(d_states, state_array, sizeof(double) * w->size, cudaMemcpyHostToDevice);
+
+    double *x1, *x2, *x3, *k1, *k2, *k3, *k4;
+    cudaMalloc(&x1, sizeof(double) * w->size);
+    cudaMalloc(&x2, sizeof(double) * w->size);
+    cudaMalloc(&x3, sizeof(double) * w->size);
+    cudaMalloc(&k1, sizeof(double) * w->size);
+    cudaMalloc(&k2, sizeof(double) * w->size);
+    cudaMalloc(&k3, sizeof(double) * w->size);
+    cudaMalloc(&k4, sizeof(double) * w->size);
+
     double tStart = TIME();
     for (size_t i = 1; i <= 64; i++) {
         OUT("\tStep", i);
-        step_cuda(_dt, &cuda_wake, state_array, w->size);
+        step_cuda(_dt, &cuda_wake, d_states, x1, x2, x3, k1, k2, k3, k4, w->size);
     }
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
@@ -375,6 +367,14 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
         std::cout << cuda_wake.position[i * 3] << " " << cuda_wake.position[i * 3 + 1] << " " << cuda_wake.position[i * 3 + 2] << " " << std::endl;
     }
 
+    cudaFree(d_states);
+    cudaFree(x1);
+    cudaFree(x2);
+    cudaFree(x3);
+    cudaFree(k1);
+    cudaFree(k2);
+    cudaFree(k3);
+    cudaFree(k4);
     cudaFree(cuda_wake.radius);
     cudaFree(cuda_wake.volume);
     cudaFree(cuda_wake.birthstrength);
