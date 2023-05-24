@@ -240,24 +240,28 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
 }
 
 __global__ void rk4_process(const double dt, double* x, const double* k, const double* d_states, const double factor, const int len) {
-    for (size_t i = 0; i < len; i++) {
-        x[i] = k[i];
-        x[i] *= factor * dt;
-        x[i] += d_states[i];
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < len) {
+        x[tid] = k[tid];
+        x[tid] *= factor * dt;
+        x[tid] += d_states[tid];
     }
 }
 
 __global__ void rk4_final(const double dt, double* d_states, double* k1, double* k2, const double* k3, const double* k4, const int len) {
-    for (size_t i = 0; i < len; i++) {
-        k1[i] += k4[i];
-        k1[i] *= dt / 6.;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-        k2[i] += k3[i];
-        k2[i] *= dt / 3.;
+    if (tid < len) {
+        k1[tid] += k4[tid];
+        k1[tid] *= dt / 6.;
 
-        k1[i] += k2[i];
+        k2[tid] += k3[tid];
+        k2[tid] *= dt / 3.;
 
-        d_states[i] += k1[i];
+        k1[tid] += k2[tid];
+
+        d_states[tid] += k1[tid];
     }
 }
 
@@ -266,15 +270,15 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
 
     int blockSize = 256;
     int numBlocks_states = (len / 2 + blockSize - 1) / blockSize;
+    int numBlocks_rk = (len + blockSize - 1) / blockSize;
 
     // k1 = f(x,t)
     setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
     interact_cuda<<<1, 1>>>(*w);
     getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k1);
-    // printf("%lf, %lf, %lf\n", w->position[0], w->position[1], w->position[2]);
 
     // x1 = x + 0.5*dt*k1
-    rk4_process<<<1, 1>>>(dt, x1, k1, d_states, factor1, len);
+    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x1, k1, d_states, factor1, len);
 
     // k2 = f(x1, t+0.5*dt)
     setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x1);
@@ -282,7 +286,7 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
     getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
-    rk4_process<<<1, 1>>>(dt, x2, k2, d_states, factor1, len);
+    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x2, k2, d_states, factor1, len);
 
     // k3 = f(x2, t+0.5*dt)
     setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x2);
@@ -290,14 +294,14 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
     getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k3);
 
     // x3 = x2 + dt*k3
-    rk4_process<<<1, 1>>>(dt, x3, k3, d_states, factor2, len);
+    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x3, k3, d_states, factor2, len);
 
     // k4 = f(x3, t+dt)
     setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x3);
     interact_cuda<<<1, 1>>>(*w);
     getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k4);
 
-    rk4_final<<<1, 1>>>(dt, d_states, k1, k2, k3, k4, len);
+    rk4_final<<<numBlocks_rk, blockSize>>>(dt, d_states, k1, k2, k3, k4, len);
 
     setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
 
