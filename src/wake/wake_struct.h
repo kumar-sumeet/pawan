@@ -188,6 +188,11 @@ inline void interact(wake_struct* w) {
         }
     }
 }
+
+struct pair {
+    int i_src;
+    int i_trg;
+};
 }  // namespace pawan
 
 #endif  // WAKE_STRUCT_H

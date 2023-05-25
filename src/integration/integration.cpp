@@ -7,7 +7,7 @@
  */
 #include "integration.h"
 
-#define STEPS 64
+#define STEPS 1
 
 extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, const double* state_array);
 
