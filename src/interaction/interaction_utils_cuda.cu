@@ -47,13 +47,13 @@ __device__ void VORSTRETCH_CUDA(const double& q,
                                 const double* target_vorticity,
                                 const double* displacement,
                                 double* retvorcity) {
-    double* trgXsrc = (double*)malloc(sizeof(double) * 3);
+    double *trgXsrc, *crossed, *stretch;
+    cudaMalloc(&trgXsrc, sizeof(double) * 3);
+    cudaMalloc(&crossed, sizeof(double) * 3);
+    cudaMalloc(&stretch, sizeof(double) * 3);
     trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
     trgXsrc[2] = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
-
-    double* crossed = (double*)malloc(sizeof(double) * 3);
-    double* stretch = (double*)malloc(sizeof(double) * 3);
 
     for (size_t i = 0; i < 3; i++)
         crossed[i] = trgXsrc[i] * q;
@@ -70,9 +70,9 @@ __device__ void VORSTRETCH_CUDA(const double& q,
     for (size_t i = 0; i < 3; i++)
         retvorcity[i] += (crossed[i] + stretch[i]);
 
-    free(trgXsrc);
-    free(crossed);
-    free(stretch);
+    cudaFree(trgXsrc);
+    cudaFree(crossed);
+    cudaFree(stretch);
 };
 
 __device__ void DIFFUSION_CUDA(const double& nu,
@@ -83,9 +83,11 @@ __device__ void DIFFUSION_CUDA(const double& nu,
                                const double& source_volume,
                                const double& target_volume,
                                double* retvorcity) {
-    double* va12 = (double*)malloc(sizeof(double) * 3);
-    double* va21 = (double*)malloc(sizeof(double) * 3);
-    double* dva = (double*)malloc(sizeof(double) * 3);
+
+    double *va12, *va21, *dva;
+    cudaMalloc(&va12, sizeof(double) * 3);
+    cudaMalloc(&va21, sizeof(double) * 3);
+    cudaMalloc(&dva, sizeof(double) * 3);
 
     for (size_t i = 0; i < 3; i++) {
         va12[i] = source_vorticity[i] * target_volume;
@@ -99,9 +101,9 @@ __device__ void DIFFUSION_CUDA(const double& nu,
     for (size_t i = 0; i < 3; i++)
         retvorcity[i] += dva[i];
 
-    free(va12);
-    free(va21);
-    free(dva);
+    cudaFree(va12);
+    cudaFree(va21);
+    cudaFree(dva);
 }
 
 __device__ void INTERACT_CUDA(
@@ -119,7 +121,8 @@ __device__ void INTERACT_CUDA(
     double* da_source,
     double* da_target) {
     // kenerl computation
-    double* displacement = (double*)malloc(sizeof(double) * 3);
+    double* displacement;
+    cudaMalloc(&displacement, sizeof(double) * 3);
     for (size_t i = 0; i < 3; i++)
         displacement[i] = r_target[i] - r_source[i];
     double rho = euclidean_norm_cuda(displacement, 3);
@@ -127,7 +130,9 @@ __device__ void INTERACT_CUDA(
     double sigma = std::sqrt(s_source * s_source + s_target * s_target) / 2.0;
 
     // velocity computation
-    double* dr = (double*)malloc(sizeof(double) * 3);
+    double* dr;
+    cudaMalloc(&dr, sizeof(double)*3);
+
     for (size_t i = 0; i < 3; i++)
         dr[i] = 0.0;
     // target
@@ -142,7 +147,8 @@ __device__ void INTERACT_CUDA(
         dr_source[i] += dr[i];
 
     // Rate of change of vorticity computation
-    double* da = (double*)malloc(sizeof(double) * 3);
+    double* da;
+    cudaMalloc(&da, sizeof(double)*3);
     for (size_t i = 0; i < 3; i++)
         da[i] = 0.0;
 
@@ -154,9 +160,9 @@ __device__ void INTERACT_CUDA(
         da_target[i] += da[i];
         da_source[i] -= da[i];
     }
-    free(dr);
-    free(da);
-    free(displacement);
+    cudaFree(dr);
+    cudaFree(da);
+    cudaFree(displacement);
 }
 
 __global__ void setStates_cuda(pawan::wake_cuda w, const double* state) {
@@ -200,11 +206,12 @@ __global__ void interact_cuda(pawan::wake_cuda w, pawan::pair* mapping, int size
         size_t numDimensions = w.numDimensions;
         int i_src = mapping[tid].i_src;
         int i_trg = mapping[tid].i_trg;
-        // printf("%d -- %d\n", i_src, i_trg);
-        double* r_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* a_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* dr_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* da_src = (double*)malloc(sizeof(double) * numDimensions);
+
+        double *r_src, *a_src, *dr_src, *da_src;
+        cudaMalloc(&r_src, sizeof(double) * numDimensions);
+        cudaMalloc(&a_src, sizeof(double) * numDimensions);
+        cudaMalloc(&dr_src, sizeof(double) * numDimensions);
+        cudaMalloc(&da_src, sizeof(double) * numDimensions);
         for (size_t j = 0; j < numDimensions; j++) {
             r_src[j] = w.position[i_src * numDimensions + j];
             a_src[j] = w.vorticity[i_src * numDimensions + j];
@@ -215,10 +222,12 @@ __global__ void interact_cuda(pawan::wake_cuda w, pawan::pair* mapping, int size
         double v_src = w.volume[i_src];
 
         // n * (n - 1) might be difficult to parallize
-        double* r_trg = (double*)malloc(sizeof(double) * numDimensions);
-        double* a_trg = (double*)malloc(sizeof(double) * numDimensions);
-        double* dr_trg = (double*)malloc(sizeof(double) * numDimensions);
-        double* da_trg = (double*)malloc(sizeof(double) * numDimensions);
+
+        double *r_trg, *a_trg, *dr_trg, *da_trg;
+        cudaMalloc(&r_trg, sizeof(double) * numDimensions);
+        cudaMalloc(&a_trg, sizeof(double) * numDimensions);
+        cudaMalloc(&dr_trg, sizeof(double) * numDimensions);
+        cudaMalloc(&da_trg, sizeof(double) * numDimensions);
         for (size_t j = 0; j < numDimensions; j++) {
             r_trg[j] = w.position[i_trg * numDimensions + j];
             a_trg[j] = w.vorticity[i_trg * numDimensions + j];
@@ -236,15 +245,16 @@ __global__ void interact_cuda(pawan::wake_cuda w, pawan::pair* mapping, int size
             w.velocity[i_trg * numDimensions + j] = dr_trg[j];
             w.retvorcity[i_trg * numDimensions + j] = da_trg[j];
         }
-        free(r_trg);
-        free(a_trg);
-        free(dr_trg);
-        free(da_trg);
+        
+        cudaFree(r_trg);
+        cudaFree(a_trg);
+        cudaFree(dr_trg);
+        cudaFree(da_trg);
 
-        free(r_src);
-        free(a_src);
-        free(dr_src);
-        free(da_src);
+        cudaFree(r_src);
+        cudaFree(a_src);
+        cudaFree(dr_src);
+        cudaFree(da_src);
     }
 }
 
@@ -379,7 +389,7 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
     cudaMemcpy(d_mapping, h_mapping, sizeof(pawan::pair) * numPairs, cudaMemcpyHostToDevice);
 
     double tStart = TIME();
-    for (size_t i = 1; i <= 1; i++) {
+    for (size_t i = 1; i <= 64; i++) {
         OUT("\tStep", i);
         step_cuda(_dt, &cuda_wake, d_mapping, d_states, x1, x2, x3, k1, k2, k3, k4, w->size);
     }

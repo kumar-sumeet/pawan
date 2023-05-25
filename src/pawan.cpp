@@ -38,9 +38,9 @@ int main(int argc, char* argv[]) {
     // pawan::__integration *IN = new pawan::__integration(0.02,10);
     pawan::__integration* IN = new pawan::__rk4(4, 64);
 
-    IN->integrate(S, IO);
+    // IN->integrate(S, IO);
     // IN->integrate_gsl_free(S_gsl_free);
-    // IN->integrate_cuda(S_cuda);
+    IN->integrate_cuda(S_cuda);
 
     delete IN;
     delete S;
