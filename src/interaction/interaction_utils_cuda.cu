@@ -9,12 +9,12 @@
 
 static const double factor1 = 0.5, factor2 = 1.0;
 
-__device__ double euclidean_norm_cuda(const double* x, std::size_t n) {
+__device__ void euclidean_norm_cuda(double& res, const double* x, std::size_t n) {
     double sum_of_squares = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
         sum_of_squares += x[i] * x[i];
     }
-    return std::sqrt(sum_of_squares);
+    res = std::sqrt(sum_of_squares);
 }
 
 __device__ void KERNEL_CUDA(const double& rho,
@@ -47,10 +47,9 @@ __device__ void VORSTRETCH_CUDA(const double& q,
                                 const double* target_vorticity,
                                 const double* displacement,
                                 double* retvorcity) {
-    double *trgXsrc, *crossed, *stretch;
-    cudaMalloc(&trgXsrc, sizeof(double) * 3);
-    cudaMalloc(&crossed, sizeof(double) * 3);
-    cudaMalloc(&stretch, sizeof(double) * 3);
+    double* trgXsrc = (double*)malloc(sizeof(double) * 3);
+    double* crossed = (double*)malloc(sizeof(double) * 3);
+    double* stretch = (double*)malloc(sizeof(double) * 3);
     trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
     trgXsrc[2] = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
@@ -70,9 +69,9 @@ __device__ void VORSTRETCH_CUDA(const double& q,
     for (size_t i = 0; i < 3; i++)
         retvorcity[i] += (crossed[i] + stretch[i]);
 
-    cudaFree(trgXsrc);
-    cudaFree(crossed);
-    cudaFree(stretch);
+    free(trgXsrc);
+    free(crossed);
+    free(stretch);
 };
 
 __device__ void DIFFUSION_CUDA(const double& nu,
@@ -83,10 +82,9 @@ __device__ void DIFFUSION_CUDA(const double& nu,
                                const double& source_volume,
                                const double& target_volume,
                                double* retvorcity) {
-    double *va12, *va21, *dva;
-    cudaMalloc(&va12, sizeof(double) * 3);
-    cudaMalloc(&va21, sizeof(double) * 3);
-    cudaMalloc(&dva, sizeof(double) * 3);
+    double* va12 = (double*)malloc(sizeof(double) * 3);
+    double* va21 = (double*)malloc(sizeof(double) * 3);
+    double* dva = (double*)malloc(sizeof(double) * 3);
 
     for (size_t i = 0; i < 3; i++) {
         va12[i] = source_vorticity[i] * target_volume;
@@ -100,9 +98,9 @@ __device__ void DIFFUSION_CUDA(const double& nu,
     for (size_t i = 0; i < 3; i++)
         retvorcity[i] += dva[i];
 
-    cudaFree(va12);
-    cudaFree(va21);
-    cudaFree(dva);
+    free(va12);
+    free(va21);
+    free(dva);
 }
 
 __device__ void INTERACT_CUDA(
@@ -120,17 +118,16 @@ __device__ void INTERACT_CUDA(
     double* da_source,
     double* da_target) {
     // kenerl computation
-    double* displacement;
-    cudaMalloc(&displacement, sizeof(double) * 3);
+    double* displacement = (double*)malloc(sizeof(double) * 3);
     for (size_t i = 0; i < 3; i++)
         displacement[i] = r_target[i] - r_source[i];
-    double rho = euclidean_norm_cuda(displacement, 3);
+    double rho;
+    euclidean_norm_cuda(rho, displacement, 3);
     double q = 0.0, F = 0.0, Z = 0.0;
     double sigma = std::sqrt(s_source * s_source + s_target * s_target) / 2.0;
 
     // velocity computation
-    double* dr;
-    cudaMalloc(&dr, sizeof(double) * 3);
+    double* dr = (double*)malloc(sizeof(double) * 3);
 
     for (size_t i = 0; i < 3; i++)
         dr[i] = 0.0;
@@ -146,8 +143,7 @@ __device__ void INTERACT_CUDA(
         dr_source[i] += dr[i];
 
     // Rate of change of vorticity computation
-    double* da;
-    cudaMalloc(&da, sizeof(double) * 3);
+    double* da = (double*)malloc(sizeof(double) * 3);
     for (size_t i = 0; i < 3; i++)
         da[i] = 0.0;
 
@@ -159,9 +155,9 @@ __device__ void INTERACT_CUDA(
         da_target[i] += da[i];
         da_source[i] -= da[i];
     }
-    cudaFree(dr);
-    cudaFree(da);
-    cudaFree(displacement);
+    free(dr);
+    free(da);
+    free(displacement);
 }
 
 __global__ void setStates_cuda(pawan::wake_cuda w, const double* state) {
