@@ -7,7 +7,10 @@
 #include "src/utils/timing_utils.h"
 #include "src/wake/wake_struct.h"
 
-static const double factor1 = 0.5, factor2 = 1.0;
+#define BLOCKSIZE 256
+
+#define FACTOR1 0.5
+#define FACTOR2 1.0
 
 __device__ void euclidean_norm_cuda(double& res, const double* x, std::size_t n) {
     double sum_of_squares = 0.0;
@@ -250,47 +253,46 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
 void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x1, double* x2, double* x3, double* k1, double* k2, double* k3, double* k4, const int len) {
     cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
 
-    int blockSize = 256;
-    int numBlocks_states = (len / 2 + blockSize - 1) / blockSize;
-    int numBlocks_rk = (len + blockSize - 1) / blockSize;
-    int numBlocks_interact = (w->numParticles + blockSize - 1) / blockSize;
+    int numBlocks_states = (len / 2 + BLOCKSIZE - 1) / BLOCKSIZE;
+    int numBlocks_rk = (len + BLOCKSIZE - 1) / BLOCKSIZE;
+    int numBlocks_interact = (w->numParticles + BLOCKSIZE - 1) / BLOCKSIZE;
 
     // k1 = f(x,t)
-    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
     clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, blockSize>>>(*w);
-    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k1);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k1);
 
     // x1 = x + 0.5*dt*k1
-    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x1, k1, d_states, factor1, len);
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x1, k1, d_states, FACTOR1, len);
 
     // k2 = f(x1, t+0.5*dt)
-    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x1);
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x1);
     clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, blockSize>>>(*w);
-    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k2);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k2);
 
     // x2 = x1 + 0.5*dt*dx2
-    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x2, k2, d_states, factor1, len);
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x2, k2, d_states, FACTOR1, len);
 
     // k3 = f(x2, t+0.5*dt)
-    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x2);
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x2);
     clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, blockSize>>>(*w);
-    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k3);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k3);
 
     // x3 = x2 + dt*k3
-    rk4_process<<<numBlocks_rk, blockSize>>>(dt, x3, k3, d_states, factor2, len);
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x3, k3, d_states, FACTOR2, len);
 
     // k4 = f(x3, t+dt)
-    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, x3);
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x3);
     clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, blockSize>>>(*w);
-    getRates_cuda<<<numBlocks_states, blockSize>>>(*w, k4);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k4);
 
-    rk4_final<<<numBlocks_rk, blockSize>>>(dt, d_states, k1, k2, k3, k4, len);
+    rk4_final<<<numBlocks_rk, BLOCKSIZE>>>(dt, d_states, k1, k2, k3, k4, len);
 
-    setStates_cuda<<<numBlocks_states, blockSize>>>(*w, d_states);
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
 
     cudaDeviceSynchronize();
 }
