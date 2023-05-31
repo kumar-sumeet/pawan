@@ -200,51 +200,24 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
     if (i_src < w.numParticles) {
         size_t numDimensions = w.numDimensions;
 
-        double* r_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* a_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* dr_src = (double*)malloc(sizeof(double) * numDimensions);
-        double* da_src = (double*)malloc(sizeof(double) * numDimensions);
-        for (size_t j = 0; j < numDimensions; j++) {
-            r_src[j] = w.position[i_src * numDimensions + j];
-            a_src[j] = w.vorticity[i_src * numDimensions + j];
-            dr_src[j] = w.velocity[i_src * numDimensions + j];
-            da_src[j] = w.retvorcity[i_src * numDimensions + j];
-        }
+        const double* r_src = &(w.position[i_src * numDimensions]);
+        const double* a_src = &(w.vorticity[i_src * numDimensions]);
+        double* dr_src = &(w.velocity[i_src * numDimensions]);
+        double* da_src = &(w.retvorcity[i_src * numDimensions]);
 
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
 
         for (size_t i_trg = i_src + 1; i_trg < w.numParticles; i_trg++) {
-            double* r_trg = (double*)malloc(sizeof(double) * numDimensions);
-            double* a_trg = (double*)malloc(sizeof(double) * numDimensions);
-            double* dr_trg = (double*)malloc(sizeof(double) * numDimensions);
-            double* da_trg = (double*)malloc(sizeof(double) * numDimensions);
-            for (size_t j = 0; j < numDimensions; j++) {
-                r_trg[j] = w.position[i_trg * numDimensions + j];
-                a_trg[j] = w.vorticity[i_trg * numDimensions + j];
-                dr_trg[j] = w.velocity[i_trg * numDimensions + j];
-                da_trg[j] = w.retvorcity[i_trg * numDimensions + j];
-            }
+            const double* r_trg = &(w.position[i_trg * numDimensions]);
+            const double* a_trg = &(w.vorticity[i_trg * numDimensions]);
+            double* dr_trg = &(w.velocity[i_trg * numDimensions]);
+            double* da_trg = &(w.retvorcity[i_trg * numDimensions]);
             double s_trg = w.radius[i_trg];
             double v_trg = w.volume[i_trg];
 
             INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
-            for (size_t j = 0; j < numDimensions; j++) {
-                w.velocity[i_src * numDimensions + j] = dr_src[j];
-                w.retvorcity[i_src * numDimensions + j] = da_src[j];
-
-                w.velocity[i_trg * numDimensions + j] = dr_trg[j];
-                w.retvorcity[i_trg * numDimensions + j] = da_trg[j];
-            }
-            free(r_trg);
-            free(a_trg);
-            free(dr_trg);
-            free(da_trg);
         }
-        free(r_src);
-        free(a_src);
-        free(dr_src);
-        free(da_src);
     }
 }
 
