@@ -147,44 +147,21 @@ inline void interact(wake_struct* w) {
             w->velocity[i][j] = w->retvorcity[i][j] = 0.0;
 
     for (size_t i_src = 0; i_src < numParticles; i_src++) {
-        double* r_src = new double[numDimensions];
-        double* a_src = new double[numDimensions];
-        double* dr_src = new double[numDimensions];
-        double* da_src = new double[numDimensions];
-        for (size_t j = 0; j < numDimensions; j++) {
-            r_src[j] = w->position[i_src][j];
-            a_src[j] = w->vorticity[i_src][j];
-            dr_src[j] = w->velocity[i_src][j];
-            da_src[j] = w->retvorcity[i_src][j];
-        }
+        const double* r_src = &(w->position[i_src][0]);
+        const double* a_src = &(w->vorticity[i_src][0]);
+        double* dr_src = &(w->velocity[i_src][0]);
+        double* da_src = &(w->retvorcity[i_src][0]);
         double s_src = w->radius[i_src];
         double v_src = w->volume[i_src];
         for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {
-            double* r_trg = new double[numDimensions];
-            double* a_trg = new double[numDimensions];
-            double* dr_trg = new double[numDimensions];
-            double* da_trg = new double[numDimensions];
-            for (size_t j = 0; j < numDimensions; j++) {
-                r_trg[j] = w->position[i_trg][j];
-                a_trg[j] = w->vorticity[i_trg][j];
-                dr_trg[j] = w->velocity[i_trg][j];
-                da_trg[j] = w->retvorcity[i_trg][j];
-            }
+            const double* r_trg = &(w->position[i_trg][0]);
+            const double* a_trg = &(w->vorticity[i_trg][0]);
+            double* dr_trg = &(w->velocity[i_trg][0]);
+            double* da_trg = &(w->retvorcity[i_trg][0]);
             double s_trg = w->radius[i_trg];
             double v_trg = w->volume[i_trg];
 
             INTERACT_GSL_FREE(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
-            for (size_t j = 0; j < numDimensions; j++) {
-                w->position[i_src][j] = r_src[j];
-                w->vorticity[i_src][j] = a_src[j];
-                w->velocity[i_src][j] = dr_src[j];
-                w->retvorcity[i_src][j] = da_src[j];
-
-                w->position[i_trg][j] = r_trg[j];
-                w->vorticity[i_trg][j] = a_trg[j];
-                w->velocity[i_trg][j] = dr_trg[j];
-                w->retvorcity[i_trg][j] = da_trg[j];
-            }
         }
     }
 }
