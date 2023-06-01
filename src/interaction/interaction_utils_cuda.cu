@@ -8,7 +8,7 @@
 #include "src/wake/wake_struct.h"
 
 #define BLOCKSIZE 256
-
+#define SOFTENING 1e-15f
 #define FACTOR1 0.5
 #define FACTOR2 1.0
 

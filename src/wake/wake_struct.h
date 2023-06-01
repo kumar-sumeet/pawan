@@ -149,11 +149,11 @@ inline void interact(wake_struct* w) {
     for (size_t i_src = 0; i_src < numParticles; i_src++) {
         const double* r_src = &(w->position[i_src][0]);
         const double* a_src = &(w->vorticity[i_src][0]);
-        double* dr_src = &(w->velocity[i_src][0]);
-        double* da_src = &(w->retvorcity[i_src][0]);
+        // double* dr_src = &(w->velocity[i_src][0]);
+        // double* da_src = &(w->retvorcity[i_src][0]);
         double s_src = w->radius[i_src];
         double v_src = w->volume[i_src];
-        for (size_t i_trg = i_src + 1; i_trg < numParticles; i_trg++) {
+        for (size_t i_trg = 0; i_trg < numParticles; i_trg++) {
             const double* r_trg = &(w->position[i_trg][0]);
             const double* a_trg = &(w->vorticity[i_trg][0]);
             double* dr_trg = &(w->velocity[i_trg][0]);
@@ -161,7 +161,7 @@ inline void interact(wake_struct* w) {
             double s_trg = w->radius[i_trg];
             double v_trg = w->volume[i_trg];
 
-            INTERACT_GSL_FREE(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
+            INTERACT_GSL_FREE(w->_nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_trg, da_trg);
         }
     }
 }

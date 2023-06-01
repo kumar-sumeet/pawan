@@ -10,6 +10,8 @@
 #ifndef WAKE_UTILS_H_
 #define WAKE_UTILS_H_
 
+#define SOFTENING 1e-12f
+
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_vector.h>
 #include <cmath>
@@ -344,7 +346,7 @@ inline double euclidean_norm(const double* x, std::size_t n) {
     for (std::size_t i = 0; i < n; ++i) {
         sum_of_squares += x[i] * x[i];
     }
-    return std::sqrt(sum_of_squares);
+    return std::sqrt(sum_of_squares + SOFTENING);
 }
 
 inline void KERNEL_GSL_FREE(const double& rho,
@@ -444,9 +446,7 @@ inline void INTERACT_GSL_FREE(
     const double* a_target,
     const double& v_source,
     const double& v_target,
-    double* dr_source,
     double* dr_target,
-    double* da_source,
     double* da_target) {
     // kenerl computation
     double* displacement = new double[3];
@@ -464,11 +464,6 @@ inline void INTERACT_GSL_FREE(
     for (size_t i = 0; i < 3; i++)
         dr_target[i] += dr[i];
 
-    // source
-    VELOCITY_GSL_FREE(-q, a_target, displacement, dr);
-    for (size_t i = 0; i < 3; i++)
-        dr_source[i] += dr[i];
-
     // Rate of change of vorticity computation
     double* da = new double[3];
     for (size_t i = 0; i < 3; i++)
@@ -478,10 +473,9 @@ inline void INTERACT_GSL_FREE(
     DIFFUSION_GSL_FREE(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
 
     // Target and source
-    for (size_t i = 0; i < 3; i++) {
+    for (size_t i = 0; i < 3; i++)
         da_target[i] += da[i];
-        da_source[i] -= da[i];
-    }
+
     delete[] dr;
     delete[] da;
     delete[] displacement;
