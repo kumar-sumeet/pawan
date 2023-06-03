@@ -36,11 +36,9 @@ __device__ void VELOCITY_CUDA(const double& kernel,
                               const double* vorticity,
                               const double* displacement,
                               double* velocity) {
-    velocity[0] = vorticity[1] * displacement[2] - vorticity[2] * displacement[1];
-    velocity[1] = vorticity[2] * displacement[0] - vorticity[0] * displacement[2];
-    velocity[2] = vorticity[0] * displacement[1] - vorticity[1] * displacement[0];
-    for (size_t i = 0; i < 3; i++)
-        velocity[i] *= kernel;
+    velocity[0] = (vorticity[1] * displacement[2] - vorticity[2] * displacement[1]) * kernel;
+    velocity[1] = (vorticity[2] * displacement[0] - vorticity[0] * displacement[2]) * kernel;
+    velocity[2] = (vorticity[0] * displacement[1] - vorticity[1] * displacement[0]) * kernel;
 };
 
 __device__ void VORSTRETCH_CUDA(const double& q,
@@ -50,30 +48,19 @@ __device__ void VORSTRETCH_CUDA(const double& q,
                                 const double* displacement,
                                 double* retvorcity) {
     double* trgXsrc = (double*)malloc(sizeof(double) * 3);
-    double* crossed = (double*)malloc(sizeof(double) * 3);
-    double* stretch = (double*)malloc(sizeof(double) * 3);
     trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
     trgXsrc[2] = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
-
-    for (size_t i = 0; i < 3; i++)
-        crossed[i] = trgXsrc[i] * q;
 
     double roaxa = 0.0;
     for (size_t i = 0; i < 3; i++) {
         roaxa += displacement[i] * trgXsrc[i];
     }
 
-    for (size_t i = 0; i < 3; i++) {
-        stretch[i] = displacement[i] * F * roaxa;
-    }
-
     for (size_t i = 0; i < 3; i++)
-        retvorcity[i] += (crossed[i] + stretch[i]);
+        retvorcity[i] += ((trgXsrc[i] * q) + (displacement[i] * F * roaxa));
 
     free(trgXsrc);
-    free(crossed);
-    free(stretch);
 };
 
 __device__ void DIFFUSION_CUDA(const double& nu,
@@ -84,25 +71,9 @@ __device__ void DIFFUSION_CUDA(const double& nu,
                                const double& source_volume,
                                const double& target_volume,
                                double* retvorcity) {
-    double* va12 = (double*)malloc(sizeof(double) * 3);
-    double* va21 = (double*)malloc(sizeof(double) * 3);
-    double* dva = (double*)malloc(sizeof(double) * 3);
-
-    for (size_t i = 0; i < 3; i++) {
-        va12[i] = source_vorticity[i] * target_volume;
-        va21[i] = target_vorticity[i] * source_volume;
-    }
-
     double sig12 = 0.5 * sigma * sigma;
     for (size_t i = 0; i < 3; i++)
-        dva[i] = (va12[i] - va21[i]) * (Z * nu / sig12);
-
-    for (size_t i = 0; i < 3; i++)
-        retvorcity[i] += dva[i];
-
-    free(va12);
-    free(va21);
-    free(dva);
+        retvorcity[i] += ((source_vorticity[i] * target_volume) - (target_vorticity[i] * source_volume)) * (Z * nu / sig12);
 }
 
 __device__ void INTERACT_CUDA(

@@ -149,8 +149,6 @@ inline void interact(wake_struct* w) {
     for (size_t i_src = 0; i_src < numParticles; i_src++) {
         const double* r_src = &(w->position[i_src][0]);
         const double* a_src = &(w->vorticity[i_src][0]);
-        // double* dr_src = &(w->velocity[i_src][0]);
-        // double* da_src = &(w->retvorcity[i_src][0]);
         double s_src = w->radius[i_src];
         double v_src = w->volume[i_src];
         for (size_t i_trg = 0; i_trg < numParticles; i_trg++) {

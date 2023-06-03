@@ -26,9 +26,6 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     S->getStates(states);
 
     pawan::__wake* wake = S->getWake();
-    for (size_t i = 0; i < wake->_numParticles; i++) {
-        std::cout << gsl_matrix_get(wake->_position, i, 0) << " " << gsl_matrix_get(wake->_position, i, 1) << " " << gsl_matrix_get(wake->_position, i, 2) << " " << std::endl;
-    }
     double tStart = TIME();
     for (size_t i = 1; i <= STEPS; ++i) {
         OUT("\tStep", i);
