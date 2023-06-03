@@ -2,13 +2,12 @@
 #include <cublas_v2.h>
 #include <cuda.h>
 #include <stdio.h>
-#include <map>
 #include "src/io/io.h"
 #include "src/utils/timing_utils.h"
 #include "src/wake/wake_struct.h"
 
 #define BLOCKSIZE 256
-#define SOFTENING 1e-15f
+#define SOFTENING_CUDA 1e-12f
 #define FACTOR1 0.5
 #define FACTOR2 1.0
 
@@ -17,7 +16,7 @@ __device__ void euclidean_norm_cuda(double& res, const double* x, std::size_t n)
     for (std::size_t i = 0; i < n; ++i) {
         sum_of_squares += x[i] * x[i];
     }
-    res = std::sqrt(sum_of_squares);
+    res = std::sqrt(sum_of_squares + SOFTENING_CUDA);
 }
 
 __device__ void KERNEL_CUDA(const double& rho,
@@ -116,9 +115,9 @@ __device__ void INTERACT_CUDA(
     const double* a_target,
     const double& v_source,
     const double& v_target,
-    double* dr_source,
+    // double* dr_source,
     double* dr_target,
-    double* da_source,
+    // double* da_source,
     double* da_target) {
     // kenerl computation
     double* displacement = (double*)malloc(sizeof(double) * 3);
@@ -138,12 +137,7 @@ __device__ void INTERACT_CUDA(
     KERNEL_CUDA(rho, sigma, q, F, Z);
     VELOCITY_CUDA(q, a_source, displacement, dr);
     for (size_t i = 0; i < 3; i++)
-        dr_target[i] += dr[i];
-
-    // source
-    VELOCITY_CUDA(-q, a_target, displacement, dr);
-    for (size_t i = 0; i < 3; i++)
-        dr_source[i] += dr[i];
+        atomicAdd(dr_target + i, dr[i]);
 
     // Rate of change of vorticity computation
     double* da = (double*)malloc(sizeof(double) * 3);
@@ -154,10 +148,9 @@ __device__ void INTERACT_CUDA(
     DIFFUSION_CUDA(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
 
     // Target and source
-    for (size_t i = 0; i < 3; i++) {
-        da_target[i] += da[i];
-        da_source[i] -= da[i];
-    }
+    for (size_t i = 0; i < 3; i++)
+        atomicAdd(da_target + i, da[i]);
+
     free(dr);
     free(da);
     free(displacement);
@@ -205,13 +198,11 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
 
         const double* r_src = &(w.position[i_src * numDimensions]);
         const double* a_src = &(w.vorticity[i_src * numDimensions]);
-        double* dr_src = &(w.velocity[i_src * numDimensions]);
-        double* da_src = &(w.retvorcity[i_src * numDimensions]);
 
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
 
-        for (size_t i_trg = i_src + 1; i_trg < w.numParticles; i_trg++) {
+        for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
             const double* r_trg = &(w.position[i_trg * numDimensions]);
             const double* a_trg = &(w.vorticity[i_trg * numDimensions]);
             double* dr_trg = &(w.velocity[i_trg * numDimensions]);
@@ -219,7 +210,7 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
             double s_trg = w.radius[i_trg];
             double v_trg = w.volume[i_trg];
 
-            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, dr_trg, da_src, da_trg);
+            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_trg, da_trg);
         }
     }
 }

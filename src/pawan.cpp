@@ -17,6 +17,7 @@
 #include "wake/ring.h"
 #include "wake/square.h"
 #include "wake/wake.h"
+#include <cstring>
 
 int main(int argc, char* argv[]) {
     std::cout << std::setprecision(16) << std::scientific;
@@ -38,9 +39,13 @@ int main(int argc, char* argv[]) {
     // pawan::__integration *IN = new pawan::__integration(0.02,10);
     pawan::__integration* IN = new pawan::__rk4(4, 64);
 
-    // IN->integrate(S, IO);
-    // IN->integrate_gsl_free(S_gsl_free);
-    IN->integrate_cuda(S_cuda);
+    if (strcmp(argv[1], "gsl") == 0) {
+        IN->integrate(S, IO);
+    } else if (strcmp(argv[1], "gsl-free") == 0) {
+        IN->integrate_gsl_free(S_gsl_free);
+    } else if (strcmp(argv[1], "cuda") == 0) {
+        IN->integrate_cuda(S_cuda);
+    }
 
     delete IN;
     delete S;
