@@ -1,5 +1,9 @@
 cmake_minimum_required (VERSION 3.2)
-project(PaWAn LANGUAGES CXX)
+
+set(CMAKE_CUDA_ARCHITECTURES "60")
+set(CMAKE_CUDA_COMPILER "/HTOpt/cuda/11.6/bin/nvcc") #neccessary for my specific setup TODO remove
+
+project(PaWAn LANGUAGES CXX CUDA)
 # add the binary tree to the search path for include files
 # so that we will find pawanConfig.h
 
@@ -23,7 +27,7 @@ pkg_check_modules( gsl REQUIRED gsl )
 find_package( OpenMP REQUIRED)
 
 # add the executable
-add_executable(pawan src/pawan.cpp)
+add_executable(pawan src/pawan.cpp src/test.cu src/test.cuh) #TODO remove test files
 target_link_libraries(pawan ${LIB} ${gsl_LIBRARIES})
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Ofast -fopenmp -lpthread -L/usr/local/lib -lgsl -lgslcblas -lm -std=c++11")

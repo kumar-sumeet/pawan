@@ -33,7 +33,10 @@ class __interaction : public __system{
         double _enstrophyF;		/*!< div-free Enstrophy */
         double _kineticEnergyF;		/*!< div-free Kinetic Energy */
         double _Zc=0.0;        /*!< position of (vring) wake centroid */
-		//! Calculate Kinetic Energy
+
+        std::vector<pawan::__wake *> _W;
+
+        //! Calculate Kinetic Energy
 		/*
 		 * Calculates kinetic energy of the wake
 		 * \param	W	Wake object pointer
@@ -123,8 +126,7 @@ class __interaction : public __system{
 		virtual void influence();
 
 	private:
-		std::vector<pawan::__wake *> _W;
-		
+
 		//! Interact
 		/*
 		 * Compute interaction between particles of a single wake object

@@ -23,6 +23,8 @@
 #include "src/networkinterface/networkdatastructures.h"
 #include "src/networkinterface/networkinterface.h"
 #include "src/networkinterface/networkinterface.cpp" //templates included this way
+#include "interaction/gpu.cuh"
+#include "test.cuh"
 
 #define OUTPUTIP "127.0.0.1"
 #define NETWORKBUFFERSIZE 50
@@ -30,8 +32,12 @@
 
 int main(int argc, char* argv[]){
 
-    std::cout << std::setprecision(16) << std::scientific;
+    std::cout << std::setprecision(13) << std::scientific;
     PAWAN();
+
+    //test();
+
+    /*
 
     //%%%%%%%%%%%%     Dymore coupling    %%%%%%%%%%%%%%%%%%
     NetworkInterfaceTCP<OPawanRecvData,OPawanSendData>
@@ -51,6 +57,7 @@ int main(int argc, char* argv[]){
     delete S;
     delete IOdym;
 
+     */
 
 /*    //%%%%%%%%%%%%     Fusion rings    %%%%%%%%%%%%%%%%%%
     //pawan::__wake *W1 = new pawan::__vring(1.0,0.1,4,80,0.1);
@@ -148,14 +155,14 @@ int main(int argc, char* argv[]){
     IN->integrate(S,IO,&networkCommunicatorTest);
 */
 
-/*
+
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
-    pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
-    pawan::__io *IOvring = new pawan::__io("vring4by80_euler");
+   // pawan::__wake *W = new pawan::__vring(1.0,0.1,1,10,0.1);
+  //  pawan::__io *IOvring = new pawan::__io("vring4by80_euler_gpu");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
     //pawan::__io *IOvring = new pawan::__io("vring_5by100");
-    //pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
-    //pawan::__io *IOvring = new pawan::__io("vring_6by117");
+    pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
+    pawan::__io *IOvring = new pawan::__io("vring_6by117");
 
     //pawan::__interaction *S = new pawan::__interaction(W);
     pawan::__interaction *S = new pawan::__parallel(W);
@@ -170,7 +177,7 @@ int main(int argc, char* argv[]){
 
     pawan::__wake *Wvring = new pawan::__wake(W);
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::__parallel(Wvring);
+    pawan::__interaction *Svring = new pawan::gpu(Wvring);
     pawan::__integration *INvring = new pawan::__integration(5,100);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
@@ -185,5 +192,5 @@ int main(int argc, char* argv[]){
     delete IOvring;
 
     return EXIT_SUCCESS;
-*/
+
 }
