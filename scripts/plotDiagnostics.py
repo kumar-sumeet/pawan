@@ -24,7 +24,7 @@ filenames = [
                 # "vring6by117_rk4",
               ]
 Fig = []
-data_dir ='/home/HT/ge56beh/Work/pawan_my/data'
+data_dir ='/home/HT/ge56beh/Work/pawan_my/validatadata'
 
 
 
