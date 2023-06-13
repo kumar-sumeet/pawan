@@ -7,9 +7,7 @@
  */
 #include "integration.h"
 
-#define STEPS 64
-
-extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, const double* state_array);
+extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array);
 
 pawan::__integration::__integration(const double& t, const size_t& n) {
     _dt = t / n;
@@ -40,27 +38,6 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     for (size_t i = 0; i < wake->_numParticles; i++) {
         std::cout << gsl_matrix_get(wake->_position, i, 0) << " " << gsl_matrix_get(wake->_position, i, 1) << " " << gsl_matrix_get(wake->_position, i, 2) << " " << std::endl;
     }
-    gsl_vector_free(states);
-}
-
-void pawan::__integration::integrate_gsl_free(__interaction* S) {
-    gsl_vector* states = gsl_vector_calloc(S->_size);
-    S->getStates(states);
-    double* state_array = new double[S->_size];
-    vectorToArray(states, state_array);
-    pawan::__wake* wake = S->getWake();
-    wake_struct* w = new wake_struct(wake);
-    double tStart = TIME();
-    for (size_t i = 1; i <= STEPS; i++) {
-        OUT("\tStep", i);
-        step(_dt, w, state_array, S->_size);
-    }
-    double tEnd = TIME();
-    OUT("Total Time (s)", tEnd - tStart);
-    for (size_t i = 0; i < w->numParticles; i++) {
-        std::cout << w->position[i][0] << " " << w->position[i][1] << " " << w->position[i][2] << " " << std::endl;
-    }
-    delete w;
     gsl_vector_free(states);
 }
 

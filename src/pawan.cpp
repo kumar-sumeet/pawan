@@ -8,6 +8,7 @@
 #include <iomanip>  // Required for set precision
 #include <iostream>
 
+#include <cstring>
 #include "io/io.h"
 #include "src/integration/integration.h"
 #include "src/integration/rk4.h"
@@ -17,7 +18,6 @@
 #include "wake/ring.h"
 #include "wake/square.h"
 #include "wake/wake.h"
-#include <cstring>
 
 int main(int argc, char* argv[]) {
     std::cout << std::setprecision(16) << std::scientific;
@@ -32,24 +32,20 @@ int main(int argc, char* argv[]) {
     // W2->translate(2,-0.4);
     // W->print();
     pawan::__interaction* S = new pawan::__interaction(W);
-    pawan::__interaction* S_gsl_free = new pawan::__interaction(W);
     pawan::__interaction* S_cuda = new pawan::__interaction(W);
     // pawan::__interaction *S = new pawan::__interaction(W,W2);
     // pawan::__interaction *S = new pawan::__parallel(W,W2);
-    // pawan::__integration *IN = new pawan::__integration(0.02,10);
-    pawan::__integration* IN = new pawan::__rk4(4, 64);
+    pawan::__integration* IN = new pawan::__integration(0.02, 10);
+    // pawan::__integration* IN = new pawan::__rk4(4, 64);
 
-    if (strcmp(argv[1], "gsl") == 0) {
+    if (strcmp(argv[1], "cpu") == 0) {
         IN->integrate(S, IO);
-    } else if (strcmp(argv[1], "gsl-free") == 0) {
-        IN->integrate_gsl_free(S_gsl_free);
     } else if (strcmp(argv[1], "cuda") == 0) {
         IN->integrate_cuda(S_cuda);
     }
 
     delete IN;
     delete S;
-    delete S_gsl_free;
     delete S_cuda;
     delete W;
     delete IO;

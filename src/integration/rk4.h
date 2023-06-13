@@ -21,7 +21,6 @@ class __rk4 : public __integration {
      * \param	state	System state
      */
     virtual void step(const double& dt, __interaction* S, gsl_vector* state);
-    virtual void step(const double& dt, wake_struct* W, double* states, const int& len);
 
    public:
     //! Constructor

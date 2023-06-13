@@ -8,6 +8,8 @@
 #ifndef INTEGRATION_H_
 #define INTEGRATION_H_
 
+#define STEPS 64
+
 #include <gsl/gsl_vector.h>
 #include <stdio.h>
 #include <iostream>
@@ -16,7 +18,6 @@
 #include "src/utils/gsl_array_utils.h"
 #include "src/utils/print_utils.h"
 #include "src/utils/timing_utils.h"
-#include "src/wake/wake_struct.h"
 
 namespace pawan {
 class __integration {
@@ -33,7 +34,6 @@ class __integration {
      * \param	state	System state
      */
     virtual void step(const double& dt, __interaction* S, gsl_vector* state);
-    virtual void step(const double& dt, wake_struct* W, double* states, const int& len) = 0;
 
    public:
     //! Constructor
@@ -57,8 +57,6 @@ class __integration {
      * \param	IO	Input/Output file writing
      */
     void integrate(__interaction* S, __io* IO);
-
-    void integrate_gsl_free(__interaction* S);
 
     void integrate_cuda(__interaction* S);
 };
