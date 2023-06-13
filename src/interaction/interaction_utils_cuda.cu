@@ -235,7 +235,6 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* r
     scale<<<1, 1>>>(rates, dt, len);
     add<<<1, 1>>>(d_states, rates, len);
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
-    cudaDeviceSynchronize();
 }
 
 extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array) {
@@ -277,6 +276,7 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
         OUT("\tStep", i);
         step_cuda(_dt, &cuda_wake, d_states, rates, w->size);
     }
+    cudaDeviceSynchronize();
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
 
