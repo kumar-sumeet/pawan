@@ -86,8 +86,8 @@ __device__ void INTERACT_CUDA(
     const double* a_target,
     const double& v_source,
     const double& v_target,
-    double* dr_target,
-    double* da_target) {
+    double* dr_source,
+    double* da_source) {
     // kenerl computation
     double* displacement = (double*)malloc(sizeof(double) * 3);
     for (size_t i = 0; i < 3; i++)
@@ -106,7 +106,7 @@ __device__ void INTERACT_CUDA(
     KERNEL_CUDA(rho, sigma, q, F, Z);
     VELOCITY_CUDA(q, a_source, displacement, dr);
     for (size_t i = 0; i < 3; i++)
-        atomicAdd(dr_target + i, dr[i]);
+        dr_source[i] += dr[i];
 
     // Rate of change of vorticity computation
     double* da = (double*)malloc(sizeof(double) * 3);
@@ -118,7 +118,7 @@ __device__ void INTERACT_CUDA(
 
     // Target and source
     for (size_t i = 0; i < 3; i++)
-        atomicAdd(da_target + i, da[i]);
+        da_source[i] -= da[i];
 
     free(dr);
     free(da);
@@ -167,19 +167,18 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
 
         const double* r_src = &(w.position[i_src * numDimensions]);
         const double* a_src = &(w.vorticity[i_src * numDimensions]);
-
+        double* dr_src = &(w.velocity[i_src * numDimensions]);
+        double* da_src = &(w.retvorcity[i_src * numDimensions]);
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
 #pragma unroll
         for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
             const double* r_trg = &(w.position[i_trg * numDimensions]);
             const double* a_trg = &(w.vorticity[i_trg * numDimensions]);
-            double* dr_trg = &(w.velocity[i_trg * numDimensions]);
-            double* da_trg = &(w.retvorcity[i_trg * numDimensions]);
             double s_trg = w.radius[i_trg];
             double v_trg = w.volume[i_trg];
 
-            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_trg, da_trg);
+            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, da_src);
         }
     }
 }
