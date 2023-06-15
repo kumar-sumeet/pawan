@@ -12,14 +12,6 @@
 #define FACTOR1 0.5
 #define FACTOR2 1.0
 
-__device__ void euclidean_norm_cuda(double& res, const double* x, std::size_t n) {
-    double sum_of_squares = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
-        sum_of_squares += x[i] * x[i];
-    }
-    res = std::sqrt(sum_of_squares + SOFTENING_CUDA);
-}
-
 __device__ void KERNEL_CUDA(const double& rho,
                             const double& sigma,
                             double& q,
@@ -35,32 +27,32 @@ __device__ void KERNEL_CUDA(const double& rho,
 
 __device__ void VELOCITY_CUDA(const double& kernel,
                               const double* vorticity,
-                              const double* displacement,
-                              double* velocity) {
-    velocity[0] = (vorticity[1] * displacement[2] - vorticity[2] * displacement[1]) * kernel;
-    velocity[1] = (vorticity[2] * displacement[0] - vorticity[0] * displacement[2]) * kernel;
-    velocity[2] = (vorticity[0] * displacement[1] - vorticity[1] * displacement[0]) * kernel;
+                              const float3 displacement,
+                              float3& velocity) {
+    velocity.x = (vorticity[1] * displacement.z - vorticity[2] * displacement.y) * kernel;
+    velocity.y = (vorticity[2] * displacement.x - vorticity[0] * displacement.z) * kernel;
+    velocity.z = (vorticity[0] * displacement.y - vorticity[1] * displacement.x) * kernel;
 };
 
 __device__ void VORSTRETCH_CUDA(const double& q,
                                 const double& F,
                                 const double* source_vorticity,
                                 const double* target_vorticity,
-                                const double* displacement,
-                                double* retvorcity) {
+                                const float3 displacement,
+                                float3& retvorcity) {
     double trgXsrc0, trgXsrc1, trgXsrc2;
     trgXsrc0 = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
     trgXsrc1 = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
     trgXsrc2 = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
 
     double roaxa = 0.0;
-    roaxa += displacement[0] * trgXsrc0;
-    roaxa += displacement[1] * trgXsrc1;
-    roaxa += displacement[2] * trgXsrc2;
+    roaxa += displacement.x * trgXsrc0;
+    roaxa += displacement.y * trgXsrc1;
+    roaxa += displacement.z * trgXsrc2;
 
-    retvorcity[0] += ((trgXsrc0 * q) + (displacement[0] * F * roaxa));
-    retvorcity[1] += ((trgXsrc1 * q) + (displacement[1] * F * roaxa));
-    retvorcity[2] += ((trgXsrc2 * q) + (displacement[2] * F * roaxa));
+    retvorcity.x += ((trgXsrc0 * q) + (displacement.x * F * roaxa));
+    retvorcity.y += ((trgXsrc1 * q) + (displacement.y * F * roaxa));
+    retvorcity.z += ((trgXsrc2 * q) + (displacement.z * F * roaxa));
 };
 
 __device__ void DIFFUSION_CUDA(const double& nu,
@@ -70,10 +62,11 @@ __device__ void DIFFUSION_CUDA(const double& nu,
                                const double* target_vorticity,
                                const double& source_volume,
                                const double& target_volume,
-                               double* retvorcity) {
+                               float3& retvorcity) {
     double sig12 = 0.5 * sigma * sigma;
-    for (size_t i = 0; i < 3; i++)
-        retvorcity[i] += ((source_vorticity[i] * target_volume) - (target_vorticity[i] * source_volume)) * (Z * nu / sig12);
+    retvorcity.x += ((source_vorticity[0] * target_volume) - (target_vorticity[0] * source_volume)) * (Z * nu / sig12);
+    retvorcity.y += ((source_vorticity[1] * target_volume) - (target_vorticity[1] * source_volume)) * (Z * nu / sig12);
+    retvorcity.z += ((source_vorticity[2] * target_volume) - (target_vorticity[2] * source_volume)) * (Z * nu / sig12);
 }
 
 __device__ void INTERACT_CUDA(
@@ -89,40 +82,26 @@ __device__ void INTERACT_CUDA(
     double* dr_source,
     double* da_source) {
     // kenerl computation
-    double* displacement = (double*)malloc(sizeof(double) * 3);
-    for (size_t i = 0; i < 3; i++)
-        displacement[i] = r_target[i] - r_source[i];
-    double rho;
-    euclidean_norm_cuda(rho, displacement, 3);
+    float3 displacement = make_float3(r_target[0] - r_source[0], r_target[1] - r_source[1], r_target[2] - r_source[2]);
+    double rho = std::sqrt(displacement.x * displacement.x + displacement.y * displacement.y + displacement.z * displacement.z + SOFTENING);
     double q = 0.0, F = 0.0, Z = 0.0;
     double sigma = std::sqrt(s_source * s_source + s_target * s_target) / 2.0;
 
     // velocity computation
-    double* dr = (double*)malloc(sizeof(double) * 3);
-
-    for (size_t i = 0; i < 3; i++)
-        dr[i] = 0.0;
-    // target
+    float3 dr = make_float3(0.0, 0.0, 0.0);
     KERNEL_CUDA(rho, sigma, q, F, Z);
     VELOCITY_CUDA(q, a_source, displacement, dr);
-    for (size_t i = 0; i < 3; i++)
-        dr_source[i] += dr[i];
+    dr_source[0] += dr.x;
+    dr_source[1] += dr.y;
+    dr_source[2] += dr.z;
 
     // Rate of change of vorticity computation
-    double* da = (double*)malloc(sizeof(double) * 3);
-    for (size_t i = 0; i < 3; i++)
-        da[i] = 0.0;
-
+    float3 da = make_float3(0.0, 0.0, 0.0);
     VORSTRETCH_CUDA(q, F, a_source, a_target, displacement, da);
     DIFFUSION_CUDA(nu, sigma, Z, a_source, a_target, v_source, v_target, da);
-
-    // Target and source
-    for (size_t i = 0; i < 3; i++)
-        da_source[i] -= da[i];
-
-    free(dr);
-    free(da);
-    free(displacement);
+    da_source[0] -= da.x;
+    da_source[1] -= da.y;
+    da_source[2] -= da.z;
 }
 
 __global__ void setStates_cuda(pawan::wake_cuda w, const double* state) {
