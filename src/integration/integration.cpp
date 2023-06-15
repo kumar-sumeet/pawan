@@ -35,7 +35,7 @@ void pawan::__integration::integrate(__interaction* S, __io* IO) {
     fclose(f);
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
-    for (size_t i = 0; i < 20; i++) {
+    for (size_t i = 0; i < wake->_numParticles; i++) {
         std::cout << gsl_matrix_get(wake->_position, i, 0) << " " << gsl_matrix_get(wake->_position, i, 1) << " " << gsl_matrix_get(wake->_position, i, 2) << " " << std::endl;
     }
     gsl_vector_free(states);

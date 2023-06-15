@@ -219,15 +219,48 @@ __global__ void add(double* states, double* rates, const int len) {
     }
 }
 
-void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* rates, const int len) {
+void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x1, double* x2, double* x3, double* k1, double* k2, double* k3, double* k4, const int len) {
+    cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
+
     int numBlocks_states = (len / 2 + BLOCKSIZE - 1) / BLOCKSIZE;
+    int numBlocks_rk = (len + BLOCKSIZE - 1) / BLOCKSIZE;
     int numBlocks_interact = (w->numParticles + BLOCKSIZE - 1) / BLOCKSIZE;
 
+    // k1 = f(x,t)
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
     clear<<<1, 1>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
-    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, rates);
-    scale<<<1, 1>>>(rates, dt, len);
-    add<<<1, 1>>>(d_states, rates, len);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k1);
+
+    // x1 = x + 0.5*dt*k1
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x1, k1, d_states, FACTOR1, len);
+
+    // k2 = f(x1, t+0.5*dt)
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x1);
+    clear<<<1, 1>>>(*w);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k2);
+
+    // x2 = x1 + 0.5*dt*dx2
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x2, k2, d_states, FACTOR1, len);
+
+    // k3 = f(x2, t+0.5*dt)
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x2);
+    clear<<<1, 1>>>(*w);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k3);
+
+    // x3 = x2 + dt*k3
+    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x3, k3, d_states, FACTOR2, len);
+
+    // k4 = f(x3, t+dt)
+    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x3);
+    clear<<<1, 1>>>(*w);
+    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k4);
+
+    rk4_final<<<numBlocks_rk, BLOCKSIZE>>>(dt, d_states, k1, k2, k3, k4, len);
+
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
 }
 
@@ -262,24 +295,36 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
     cudaMalloc(&d_states, sizeof(double) * w->size);
     cudaMemcpy(d_states, state_array, sizeof(double) * w->size, cudaMemcpyHostToDevice);
 
-    double* rates;
-    cudaMalloc(&rates, sizeof(double) * w->size);
+    double *x1, *x2, *x3, *k1, *k2, *k3, *k4;
+    cudaMalloc(&x1, sizeof(double) * w->size);
+    cudaMalloc(&x2, sizeof(double) * w->size);
+    cudaMalloc(&x3, sizeof(double) * w->size);
+    cudaMalloc(&k1, sizeof(double) * w->size);
+    cudaMalloc(&k2, sizeof(double) * w->size);
+    cudaMalloc(&k3, sizeof(double) * w->size);
+    cudaMalloc(&k4, sizeof(double) * w->size);
 
     double tStart = TIME();
     for (size_t i = 1; i <= STEPS; i++) {
         OUT("\tStep", i);
-        step_cuda(_dt, &cuda_wake, d_states, rates, w->size);
+        step_cuda(_dt, &cuda_wake, d_states, x1, x2, x3, k1, k2, k3, k4, w->size);
     }
     cudaDeviceSynchronize();
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
 
-    for (size_t i = 0; i < 20; i++) {
+    for (size_t i = 0; i < w->numParticles; i++) {
         std::cout << cuda_wake.position[i * 3] << " " << cuda_wake.position[i * 3 + 1] << " " << cuda_wake.position[i * 3 + 2] << " " << std::endl;
     }
 
     cudaFree(d_states);
-    cudaFree(rates);
+    cudaFree(x1);
+    cudaFree(x2);
+    cudaFree(x3);
+    cudaFree(k1);
+    cudaFree(k2);
+    cudaFree(k3);
+    cudaFree(k4);
     cudaFree(cuda_wake.radius);
     cudaFree(cuda_wake.volume);
     cudaFree(cuda_wake.birthstrength);
