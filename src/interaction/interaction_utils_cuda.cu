@@ -7,7 +7,7 @@
 #include "src/utils/timing_utils.h"
 #include "src/wake/wake_struct.h"
 
-#define BLOCKSIZE 256
+#define BLOCKSIZE 512
 #define SOFTENING_CUDA 1e-12f
 #define FACTOR1 0.5
 #define FACTOR2 1.0
@@ -171,14 +171,33 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
         double* da_src = &(w.retvorcity[i_src * numDimensions]);
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
-#pragma unroll
-        for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
-            const double* r_trg = &(w.position[i_trg * numDimensions]);
-            const double* a_trg = &(w.vorticity[i_trg * numDimensions]);
-            double s_trg = w.radius[i_trg];
-            double v_trg = w.volume[i_trg];
 
-            INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, da_src);
+        __shared__ double r_trgs[BLOCKSIZE * 3];
+        __shared__ double a_trgs[BLOCKSIZE * 3];
+        __shared__ double s_trgs[BLOCKSIZE];
+        __shared__ double v_trgs[BLOCKSIZE];
+        for (int block = 0; block < gridDim.x; block++) {
+            int index = threadIdx.x + block * BLOCKSIZE;
+            r_trgs[threadIdx.x * numDimensions] = w.position[index * numDimensions];
+            r_trgs[threadIdx.x * numDimensions + 1] = w.position[index * numDimensions + 1];
+            r_trgs[threadIdx.x * numDimensions + 2] = w.position[index * numDimensions + 2];
+
+            a_trgs[threadIdx.x * numDimensions] = w.vorticity[index * numDimensions];
+            a_trgs[threadIdx.x * numDimensions + 1] = w.vorticity[index * numDimensions + 1];
+            a_trgs[threadIdx.x * numDimensions + 2] = w.vorticity[index * numDimensions + 2];
+
+            s_trgs[threadIdx.x] = w.radius[index];
+            v_trgs[threadIdx.x] = w.volume[index];
+            __syncthreads();
+#pragma unroll
+            for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
+                const double* r_trg = &(r_trgs[i_trg * numDimensions]);
+                const double* a_trg = &(a_trgs[i_trg * numDimensions]);
+                double s_trg = s_trgs[i_trg];
+                double v_trg = v_trgs[i_trg];
+
+                INTERACT_CUDA(w._nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg, dr_src, da_src);
+            }
         }
     }
 }
@@ -276,7 +295,7 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
 
-    for (size_t i = 0; i < w->numParticles; i++) {
+    for (size_t i = 0; i < 20; i++) {
         std::cout << cuda_wake.position[i * 3] << " " << cuda_wake.position[i * 3 + 1] << " " << cuda_wake.position[i * 3 + 2] << " " << std::endl;
     }
 
