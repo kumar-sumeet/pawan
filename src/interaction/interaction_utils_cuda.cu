@@ -48,20 +48,19 @@ __device__ void VORSTRETCH_CUDA(const double& q,
                                 const double* target_vorticity,
                                 const double* displacement,
                                 double* retvorcity) {
-    double* trgXsrc = (double*)malloc(sizeof(double) * 3);
-    trgXsrc[0] = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
-    trgXsrc[1] = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
-    trgXsrc[2] = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
+    double trgXsrc0, trgXsrc1, trgXsrc2;
+    trgXsrc0 = target_vorticity[1] * source_vorticity[2] - target_vorticity[2] * source_vorticity[1];
+    trgXsrc1 = target_vorticity[2] * source_vorticity[0] - target_vorticity[0] * source_vorticity[2];
+    trgXsrc2 = target_vorticity[0] * source_vorticity[1] - target_vorticity[1] * source_vorticity[0];
 
     double roaxa = 0.0;
-    for (size_t i = 0; i < 3; i++) {
-        roaxa += displacement[i] * trgXsrc[i];
-    }
+    roaxa += displacement[0] * trgXsrc0;
+    roaxa += displacement[1] * trgXsrc1;
+    roaxa += displacement[2] * trgXsrc2;
 
-    for (size_t i = 0; i < 3; i++)
-        retvorcity[i] += ((trgXsrc[i] * q) + (displacement[i] * F * roaxa));
-
-    free(trgXsrc);
+    retvorcity[0] += ((trgXsrc0 * q) + (displacement[0] * F * roaxa));
+    retvorcity[1] += ((trgXsrc1 * q) + (displacement[1] * F * roaxa));
+    retvorcity[2] += ((trgXsrc2 * q) + (displacement[2] * F * roaxa));
 };
 
 __device__ void DIFFUSION_CUDA(const double& nu,
@@ -87,9 +86,7 @@ __device__ void INTERACT_CUDA(
     const double* a_target,
     const double& v_source,
     const double& v_target,
-    // double* dr_source,
     double* dr_target,
-    // double* da_source,
     double* da_target) {
     // kenerl computation
     double* displacement = (double*)malloc(sizeof(double) * 3);
@@ -173,7 +170,7 @@ __global__ void interact_cuda(pawan::wake_cuda w) {
 
         double s_src = w.radius[i_src];
         double v_src = w.volume[i_src];
-
+#pragma unroll
         for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
             const double* r_trg = &(w.position[i_trg * numDimensions]);
             const double* a_trg = &(w.vorticity[i_trg * numDimensions]);
