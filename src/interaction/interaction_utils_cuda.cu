@@ -7,7 +7,7 @@
 #include "src/utils/timing_utils.h"
 #include "src/wake/wake_struct.h"
 
-#define BLOCKSIZE 512
+#define BLOCKSIZE 2
 #define SOFTENING_CUDA 1e-12f
 #define FACTOR1 0.5
 #define FACTOR2 1.0
@@ -141,35 +141,39 @@ __global__ void clear(pawan::wake_cuda w) {
 
 __global__ void interact_cuda(pawan::wake_cuda w) {
     int i_src = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i_src < w.numParticles) {
-        size_t numDimensions = w.numDimensions;
+    size_t numDimensions = w.numDimensions;
 
-        const double* r_src = &(w.position[i_src * numDimensions]);
-        const double* a_src = &(w.vorticity[i_src * numDimensions]);
-        double* dr_src = &(w.velocity[i_src * numDimensions]);
-        double* da_src = &(w.retvorcity[i_src * numDimensions]);
-        double s_src = w.radius[i_src];
-        double v_src = w.volume[i_src];
+    // TODO: it may be possible to use local varible to store the i_src information and write them back in the end
+    const double* r_src = &(w.position[i_src * numDimensions]);
+    const double* a_src = &(w.vorticity[i_src * numDimensions]);
+    double* dr_src = &(w.velocity[i_src * numDimensions]);
+    double* da_src = &(w.retvorcity[i_src * numDimensions]);
+    double s_src = w.radius[i_src];
+    double v_src = w.volume[i_src];
 
-        __shared__ double r_trgs[BLOCKSIZE * 3];
-        __shared__ double a_trgs[BLOCKSIZE * 3];
-        __shared__ double s_trgs[BLOCKSIZE];
-        __shared__ double v_trgs[BLOCKSIZE];
-        for (int block = 0; block < gridDim.x; block++) {
-            int index = threadIdx.x + block * BLOCKSIZE;
-            r_trgs[threadIdx.x * numDimensions] = w.position[index * numDimensions];
-            r_trgs[threadIdx.x * numDimensions + 1] = w.position[index * numDimensions + 1];
-            r_trgs[threadIdx.x * numDimensions + 2] = w.position[index * numDimensions + 2];
+    __shared__ double r_trgs[BLOCKSIZE * 3];
+    __shared__ double a_trgs[BLOCKSIZE * 3];
+    __shared__ double s_trgs[BLOCKSIZE];
+    __shared__ double v_trgs[BLOCKSIZE];
+    // FIXME: when the number of particles is not the integer multiple of the BLOCKSIZE, there is something wrong. For example: 600 <--> 512
+    for (int tile = 0; tile < gridDim.x; tile++) {
+        int index = threadIdx.x + tile * BLOCKSIZE;
 
-            a_trgs[threadIdx.x * numDimensions] = w.vorticity[index * numDimensions];
-            a_trgs[threadIdx.x * numDimensions + 1] = w.vorticity[index * numDimensions + 1];
-            a_trgs[threadIdx.x * numDimensions + 2] = w.vorticity[index * numDimensions + 2];
+        r_trgs[threadIdx.x * numDimensions] = w.position[index * numDimensions];
+        r_trgs[threadIdx.x * numDimensions + 1] = w.position[index * numDimensions + 1];
+        r_trgs[threadIdx.x * numDimensions + 2] = w.position[index * numDimensions + 2];
 
-            s_trgs[threadIdx.x] = w.radius[index];
-            v_trgs[threadIdx.x] = w.volume[index];
-            __syncthreads();
+        a_trgs[threadIdx.x * numDimensions] = w.vorticity[index * numDimensions];
+        a_trgs[threadIdx.x * numDimensions + 1] = w.vorticity[index * numDimensions + 1];
+        a_trgs[threadIdx.x * numDimensions + 2] = w.vorticity[index * numDimensions + 2];
+
+        s_trgs[threadIdx.x] = w.radius[index];
+        v_trgs[threadIdx.x] = w.volume[index];
+        __syncthreads();
+            int num_targets = (tile == gridDim.x - 1) ? (w.numParticles % BLOCKSIZE == 0 ? BLOCKSIZE : w.numParticles % BLOCKSIZE) : BLOCKSIZE;
+if (i_src < w.numParticles) {
 #pragma unroll
-            for (size_t i_trg = 0; i_trg < w.numParticles; i_trg++) {
+            for (size_t i_trg = 0; i_trg < num_targets; i_trg++) {
                 const double* r_trg = &(r_trgs[i_trg * numDimensions]);
                 const double* a_trg = &(a_trgs[i_trg * numDimensions]);
                 double s_trg = s_trgs[i_trg];
@@ -207,6 +211,7 @@ __global__ void rk4_final(const double dt, double* d_states, double* k1, double*
     }
 }
 
+// TODO: remove these two funtions which are for euler method
 __global__ void scale(double* rates, const double dt, const int len) {
     for (int i = 0; i < len; i++) {
         rates[i] *= dt;
@@ -219,53 +224,20 @@ __global__ void add(double* states, double* rates, const int len) {
     }
 }
 
-void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x1, double* x2, double* x3, double* k1, double* k2, double* k3, double* k4, const int len) {
-    cudaMemcpy(x1, d_states, sizeof(double) * len, cudaMemcpyDeviceToDevice);
-
+// TODO: change back to rk4 after debugging
+void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* rates, const int len) {
     int numBlocks_states = (len / 2 + BLOCKSIZE - 1) / BLOCKSIZE;
-    int numBlocks_rk = (len + BLOCKSIZE - 1) / BLOCKSIZE;
     int numBlocks_interact = (w->numParticles + BLOCKSIZE - 1) / BLOCKSIZE;
 
-    // k1 = f(x,t)
-    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
     clear<<<1, 1>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
-    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k1);
-
-    // x1 = x + 0.5*dt*k1
-    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x1, k1, d_states, FACTOR1, len);
-
-    // k2 = f(x1, t+0.5*dt)
-    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x1);
-    clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
-    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k2);
-
-    // x2 = x1 + 0.5*dt*dx2
-    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x2, k2, d_states, FACTOR1, len);
-
-    // k3 = f(x2, t+0.5*dt)
-    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x2);
-    clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
-    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k3);
-
-    // x3 = x2 + dt*k3
-    rk4_process<<<numBlocks_rk, BLOCKSIZE>>>(dt, x3, k3, d_states, FACTOR2, len);
-
-    // k4 = f(x3, t+dt)
-    setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x3);
-    clear<<<1, 1>>>(*w);
-    interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
-    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k4);
-
-    rk4_final<<<numBlocks_rk, BLOCKSIZE>>>(dt, d_states, k1, k2, k3, k4, len);
-
+    getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, rates);
+    scale<<<1, 1>>>(rates, dt, len);
+    add<<<1, 1>>>(d_states, rates, len);
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
 }
 
 extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array) {
-    // TODO: replace cudaMallocManaged with cudaMalloc for wake_cuda
     pawan::wake_cuda cuda_wake;
     cuda_wake.size = w->size;
     cuda_wake.numParticles = w->numParticles;
@@ -295,36 +267,24 @@ extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, doubl
     cudaMalloc(&d_states, sizeof(double) * w->size);
     cudaMemcpy(d_states, state_array, sizeof(double) * w->size, cudaMemcpyHostToDevice);
 
-    double *x1, *x2, *x3, *k1, *k2, *k3, *k4;
-    cudaMalloc(&x1, sizeof(double) * w->size);
-    cudaMalloc(&x2, sizeof(double) * w->size);
-    cudaMalloc(&x3, sizeof(double) * w->size);
-    cudaMalloc(&k1, sizeof(double) * w->size);
-    cudaMalloc(&k2, sizeof(double) * w->size);
-    cudaMalloc(&k3, sizeof(double) * w->size);
-    cudaMalloc(&k4, sizeof(double) * w->size);
+    double* rates;
+    cudaMalloc(&rates, sizeof(double) * w->size);
 
     double tStart = TIME();
     for (size_t i = 1; i <= STEPS; i++) {
         OUT("\tStep", i);
-        step_cuda(_dt, &cuda_wake, d_states, x1, x2, x3, k1, k2, k3, k4, w->size);
+        step_cuda(_dt, &cuda_wake, d_states, rates, w->size);
     }
     cudaDeviceSynchronize();
     double tEnd = TIME();
     OUT("Total Time (s)", tEnd - tStart);
 
-    for (size_t i = 0; i < w->numParticles; i++) {
+    for (size_t i = 0; i < cuda_wake.numParticles; i++) {
         std::cout << cuda_wake.position[i * 3] << " " << cuda_wake.position[i * 3 + 1] << " " << cuda_wake.position[i * 3 + 2] << " " << std::endl;
     }
 
     cudaFree(d_states);
-    cudaFree(x1);
-    cudaFree(x2);
-    cudaFree(x3);
-    cudaFree(k1);
-    cudaFree(k2);
-    cudaFree(k3);
-    cudaFree(k4);
+    cudaFree(rates);
     cudaFree(cuda_wake.radius);
     cudaFree(cuda_wake.volume);
     cudaFree(cuda_wake.birthstrength);
