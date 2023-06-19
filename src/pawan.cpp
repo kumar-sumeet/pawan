@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
     PAWAN();
     pawan::__io* IO = new pawan::__io();
     // pawan::__wake *W = new pawan::__wake(1.0,1.0,1.0,1024);
-    pawan::__wake* W = new pawan::__ring(1.0, 1.0, 1.0, 3);
+    pawan::__wake* W = new pawan::__ring(1.0, 1.0, 1.0, 32);
     // pawan::__wake *W = new pawan::__ring(0.4,1.0,0.2,32,3);
     // pawan::__wake* W = new pawan::__square(3., 2.0, 0.1, 20);
     // pawan::__wake *W2 = new pawan::__ring(0.4,1.0,0.2,32,3,true);
@@ -35,8 +35,8 @@ int main(int argc, char* argv[]) {
     pawan::__interaction* S_cuda = new pawan::__interaction(W);
     // pawan::__interaction *S = new pawan::__interaction(W,W2);
     // pawan::__interaction *S = new pawan::__parallel(W,W2);
-    pawan::__integration* IN = new pawan::__integration(0.02, 10);
-    // pawan::__integration* IN = new pawan::__rk4(4, 64);
+    // pawan::__integration* IN = new pawan::__integration(0.02, 10);
+    pawan::__integration* IN = new pawan::__rk4(4, 64);
 
     if (strcmp(argv[1], "cpu") == 0) {
         IN->integrate(S, IO);
