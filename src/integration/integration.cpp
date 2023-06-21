@@ -7,7 +7,7 @@
  */
 #include "integration.h"
 
-extern "C" void cuda_step_wrapper(const double _dt, pawan::wake_struct* w, double* state_array);
+extern "C" void cuda_step_wrapper(const double _dt, pawan::__wake* w, double* state_array);
 
 pawan::__integration::__integration(const double& t, const size_t& n) {
     _dt = t / n;
@@ -45,11 +45,11 @@ void pawan::__integration::integrate_cuda(__interaction* S) {
     gsl_vector* states = gsl_vector_calloc(S->_size);
     S->getStates(states);
     double* state_array = new double[S->_size];
-    vectorToArray(states, state_array);
+    for (size_t i = 0; i < S->_size; i++) {
+        state_array[i] = gsl_vector_get(states, i);
+    }
     pawan::__wake* wake = S->getWake();
-    wake_struct* w = new wake_struct(wake);
-    cuda_step_wrapper(_dt, w, state_array);
-    delete w;
+    cuda_step_wrapper(_dt, wake, state_array);
     delete[] state_array;
     gsl_vector_free(states);
 }

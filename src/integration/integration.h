@@ -15,7 +15,6 @@
 #include <iostream>
 #include "src/interaction/interaction.h"
 #include "src/io/io.h"
-#include "src/utils/gsl_array_utils.h"
 #include "src/utils/print_utils.h"
 #include "src/utils/timing_utils.h"
 
