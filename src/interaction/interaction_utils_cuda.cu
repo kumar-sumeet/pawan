@@ -127,11 +127,11 @@ __global__ void getRates_cuda(pawan::wake_cuda w, double* rate) {
 }
 
 __global__ void clear(pawan::wake_cuda w) {
-    size_t numDimensions = w.numDimensions;
-    size_t numParticles = w.numParticles;
-    for (size_t i = 0; i < numParticles; i++)
-        for (size_t j = 0; j < numDimensions; j++)
-            w.velocity[i * numDimensions + j] = w.retvorcity[i * numDimensions + j] = 0.0;
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < w.size) {
+        w.velocity[tid] = w.retvorcity[tid] = 0.0;
+    }
 }
 
 __global__ void interact_cuda(pawan::wake_cuda w) {
@@ -223,7 +223,7 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
 
     //  k1 = f(x,t)
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, d_states);
-    clear<<<1, 1>>>(*w);
+    clear<<<numBlocks_states, BLOCKSIZE>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
     getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k1);
 
@@ -232,7 +232,7 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
 
     // k2 = f(x1, t+0.5*dt)
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x1);
-    clear<<<1, 1>>>(*w);
+    clear<<<numBlocks_states, BLOCKSIZE>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
     getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k2);
 
@@ -241,7 +241,7 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
 
     // k3 = f(x2, t+0.5*dt)
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x2);
-    clear<<<1, 1>>>(*w);
+    clear<<<numBlocks_states, BLOCKSIZE>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
     getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k3);
 
@@ -250,7 +250,7 @@ void step_cuda(const double dt, pawan::wake_cuda* w, double* d_states, double* x
 
     // k4 = f(x3, t+dt)
     setStates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, x3);
-    clear<<<1, 1>>>(*w);
+    clear<<<numBlocks_states, BLOCKSIZE>>>(*w);
     interact_cuda<<<numBlocks_interact, BLOCKSIZE>>>(*w);
     getRates_cuda<<<numBlocks_states, BLOCKSIZE>>>(*w, k4);
 
