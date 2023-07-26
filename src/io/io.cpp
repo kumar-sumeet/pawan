@@ -11,14 +11,14 @@
 pawan::__io::__io(){
     DOUT("----------------in pawan::__io::__io()");
     //_root = "../data/";
-	_root = "/home/HT/ge56beh/Work/pawan_my/data/";
+    _root = "/home/HT/ge93mab/idp/pawan/data/";
 	_name = "temp";
 }
 
 pawan::__io::__io(std::string dymfilename){
     DOUT("----------------in pawan::__io::__io()");
     //_root = "../data/";
-    _root = "/home/HT/ge56beh/Work/pawan_my/data/";
+    _root = "/home/HT/ge93mab/idp/pawan/data/";
     _name = dymfilename+"Wake";
 }
 
@@ -46,4 +46,6 @@ FILE* pawan::__io::open_binary_file(std::string suffix = ".bin"){
 	FILE *f = fopen(filename.c_str(),"rb");
 	return f;
 }
+
+
 

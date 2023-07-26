@@ -2,13 +2,28 @@
 #include "test.cuh"
 #include <iostream>
 
+#include "wake/wake.h"
+#include "wake/test_wake.h"
 #include <gsl/gsl_vector_double.h>
 #include "interaction/interaction_utils.h"
 #include "interaction/interaction_utils_gpu.cuh"
+#include "interaction/interaction.h"
+#include "interaction/gpu.cuh"
 #include <gsl/gsl_rng.h>
+#include "io/io.h"
+#include "integration/gpu_euler.cuh"
+#include "wake/ring.h"
+#include "wake/vring.h"
+#include "resolve/resolve.h"
+
+using namespace pawan;
+
+constexpr double epsilon = 1e-10;
 
 
 //output errors with location
+bool closeToZero(double gpuV);
+
 #define checkGPUError(ans) checkGPUError_((ans), __FILE__, __LINE__)
 
 __inline__ void checkGPUError_(cudaError_t errorCode, const char* file, int line){
@@ -77,7 +92,6 @@ bool testSingleInteract(double nu, double s_src, double s_trg, gsl_vector *r_src
     //std::cout << "GPU velocity " << retVals[0].x << ", " << retVals[0].y << ", " << retVals[0].z << "\n";
     //std::cout << "GPU retvorticity " << retVals[1].x << ", " << retVals[1].y << ", " << retVals[1].z << "\n";
 
-    constexpr double epsilon = 1e-13;
 
     bool equal = gsl_fcmp(retVals[0].x, vx_s, epsilon) == 0
                  && gsl_fcmp(retVals[0].y, vy_s, epsilon) == 0
@@ -154,10 +168,158 @@ void testInteractWithRandomValues() {
     gsl_vector_free(a_trg);
 }
 
+void compare_equal(gsl_vector *gpu, gsl_vector *cpu, int size, int offset) {
+    int wrong = 0;
+    std::cout << "Position\n";
+    for(int i = 0; i < size; i++){
+        double gpu_v = gsl_vector_get(gpu,i);
+        double cpu_v = gsl_vector_get(cpu,i);
+
+        if(0 != gsl_fcmp(gpu_v,cpu_v, epsilon)  && ! ( closeToZero(gpu_v) && closeToZero(cpu_v)) ){
+            std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index " << i <<".\n";
+            wrong++;
+        }
+    }
+
+    if(offset != 0) {
+        std::cout << "Vorticity\n";
+
+        for (int i = offset; i < offset + size; i++) {
+            double gpu_v = gsl_vector_get(gpu, i);
+            double cpu_v = gsl_vector_get(cpu, i);
+
+            if (0 != gsl_fcmp(gpu_v, cpu_v, epsilon) && ! ( closeToZero(gpu_v) && closeToZero(cpu_v)) ) {
+                std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index "
+                          << i - offset << ".\n";
+                wrong++;
+            }
+        }
+    }
+    if(wrong == 0){
+        std::cout << "No error found";
+    } else {
+        std::cout << wrong << " differences  (" << (100.0 * wrong) / (size * (offset == 0 ? 1 : 2)) << " %)";
+    }
+}
+
+bool closeToZero(double gpuV) {
+    return abs(gpuV) < 1e-15;
+}
+
+void singleStep(){
+    unsigned long int seed1 = 53478496;
+    unsigned long int seed2 = 3543753850;
+
+    int size1 = 3000;
+    int size2 = 4000;
+
+
+    gsl_rng * r;
+    const gsl_rng_type * T;
+
+    gsl_rng_env_setup();
+    T = gsl_rng_default;
+    r = gsl_rng_alloc (T);
+
+    gsl_rng_set(r, seed1);
+    test_wake wakeGPU = test_wake(size1, r);
+    gsl_rng_set(r, seed1);
+    test_wake wakeCPU = test_wake(size1, r);
+
+    gsl_rng_set(r, seed2);
+    test_wake wakeGPU2 = test_wake(size2, r);
+    gsl_rng_set(r, seed2);
+    test_wake wakeCPU2 = test_wake(size2, r);
+
+    __interaction *interactionGPU = new gpu(&wakeGPU, &wakeGPU2);
+    __interaction *interactionCPU = new __parallel(&wakeCPU, &wakeCPU2);
+
+    std::cout << "Solve GPU\n";
+    interactionGPU->solve();
+    std::cout << "Solve CPU\n";
+    interactionCPU->solve();
+
+    std::cout << "compare (with epsilon " << epsilon << ")\n";
+    gsl_vector *ratesGPU = gsl_vector_calloc(wakeGPU._size + wakeGPU2._size);
+    gsl_vector *ratesCPU = gsl_vector_calloc(wakeCPU._size + wakeCPU2._size);
+
+    interactionGPU->getRates(ratesGPU);
+    interactionCPU->getRates(ratesCPU);
+
+    compare_equal(ratesGPU, ratesCPU, wakeGPU._size + wakeGPU2._size, 0);
+}
+
+void wholeIntegration(){
+    /*
+    unsigned long int seed1 = 98;
+
+    int size1 = 3000;
+
+    gsl_rng * r;
+    const gsl_rng_type * T;
+
+    gsl_rng_env_setup();
+    T = gsl_rng_default;
+    r = gsl_rng_alloc (T);
+
+    gsl_rng_set(r, seed1);
+    test_wake wakeGPU = test_wake(size1, r);
+    gsl_rng_set(r, seed1);
+    test_wake wakeCPU = test_wake(size1, r);
+*/
+
+    pawan::__io *IOvringGPU = new pawan::__io("testGPU");
+
+
+    pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
+    pawan::__interaction *S = new pawan::__parallel(W);
+
+    pawan::__resolve *R = new pawan::__resolve();
+    S->diagnose();//simply calculate diagnostics
+    R->rebuild(S,IOvringGPU);
+    W->print();
+    S->diagnose();
+    S->solve();
+    W->print();
+
+    //pawan::__wake *W1 = new pawan::__ring(1.0,5.0,0.1,1000);
+    pawan::__wake *wakeGPU = new pawan::__wake(W);
+    //pawan::__wake *W2 = new pawan::__ring(1.0,5.0,0.1,1000);
+    pawan::__wake *wakeCPU = new pawan::__wake(W);
+
+
+    pawan::__interaction *SvringGPU = new pawan::__parallel(wakeGPU);
+    pawan::__integration *INvringGPU = new pawan::gpu_euler(5,100);
+
+    INvringGPU->integrate(SvringGPU,IOvringGPU,false);
+
+    pawan::__io *IOvringCPU = new pawan::__io("testCPU");
+
+    pawan::__interaction *SvringCPU = new pawan::__parallel(wakeCPU);
+    pawan::__integration *INvringCPU = new pawan::__integration(5,100);
+
+    INvringCPU->integrate(SvringCPU,IOvringCPU,false);
+
+    std::cout << "compare (with epsilon " << epsilon << ")\n";
+    gsl_vector *statesGPU = gsl_vector_calloc(wakeGPU->_maxsize);
+    gsl_vector *statesCPU = gsl_vector_calloc(wakeCPU->_maxsize);
+
+    wakeGPU->getStates(statesGPU);
+    wakeCPU->getStates(statesCPU);
+
+    compare_equal(statesGPU, statesCPU, wakeGPU->_numParticles * 3, wakeGPU->_maxsize/2);
+
+
+}
+
+
 void test()
 {
-    testInteractWithRandomValues();
+    //testInteractWithRandomValues();
 
+    //singleStep();
+
+    wholeIntegration();
 
 }
 

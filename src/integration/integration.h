@@ -59,11 +59,11 @@ class __integration{
          * \param	S	Interaction solver
          * \param	IO	Input/Output file writing
          */
-        void integrate(__system *S,
+        virtual void integrate(__system *S,
                        __io *IO,
                        NetworkInterfaceTCP<OPawanRecvData,OPawanSendData> *networkCommunicatorTest,
                        bool diagnose=false);
-        void integrate(__system *S,
+        virtual void integrate(__system *S,
                        __io *IO,
                        bool diagnose=false);
 

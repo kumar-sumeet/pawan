@@ -716,3 +716,56 @@ double pawan::__interaction::calculateKineticEnergyF(__wake *W1, __wake *W2){
     // doubling KE because KE(i,j) = KE(j,i)
     return ke;
 }
+
+void pawan::__interaction::setParticles(double *p){
+    auto rateBuffer = reinterpret_cast<double4*>(p);
+
+    int index = 0;
+
+    for(auto w : _W){
+        for(int i = 0; i < w->_numParticles; i++, index++){
+            gsl_matrix_set(w->_position,i,0,rateBuffer[2 * index].x);
+            gsl_matrix_set(w->_position,i,1,rateBuffer[2 * index].y);
+            gsl_matrix_set(w->_position,i,2,rateBuffer[2 * index].z);
+            gsl_matrix_set(w->_vorticity,i,0,rateBuffer[2 * index + 1].x);
+            gsl_matrix_set(w->_vorticity,i,1,rateBuffer[2 * index + 1].y);
+            gsl_matrix_set(w->_vorticity,i,2,rateBuffer[2 * index + 1].z);
+            //ignore volume and smoothing radius because they should not have changed
+        }
+    }
+
+}
+
+void pawan::__interaction::getParticles(double *p){
+
+    auto particlesBuffer = reinterpret_cast<double4*>(p);
+
+    int position = 0;
+
+    for(auto const w : _W){
+        for(int i = 0; i < w->_numParticles; i++, position++) {
+            particlesBuffer[2 * position].x = gsl_matrix_get(w->_position, i, 0);
+            particlesBuffer[2 * position].y = gsl_matrix_get(w->_position, i, 1);
+            particlesBuffer[2 * position].z = gsl_matrix_get(w->_position, i, 2);
+            particlesBuffer[2 * position].w = gsl_vector_get(w->_radius, i);
+            particlesBuffer[2 * position + 1].x = gsl_matrix_get(w->_vorticity, i, 0);
+            particlesBuffer[2 * position + 1].y = gsl_matrix_get(w->_vorticity, i, 1);
+            particlesBuffer[2 * position + 1].z = gsl_matrix_get(w->_vorticity, i, 2);
+            particlesBuffer[2 * position + 1].w = gsl_vector_get(w->_volume, i);
+
+        }
+    }
+
+}
+
+int pawan::__interaction::amountParticles() {
+    int total = 0;
+    for(auto const w : _W){
+        total += w->_numParticles;
+    }
+    return total;
+}
+
+double pawan::__interaction::getNu() {
+    return _nu;
+}

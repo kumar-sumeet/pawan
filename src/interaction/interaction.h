@@ -242,6 +242,12 @@ class __interaction : public __system{
 		 */
 		virtual void getStates(gsl_vector *state);
 
+        //For gpu code
+        void setParticles(double *particles) override;
+        void getParticles(double *particles) override;
+        int amountParticles() override;
+        double getNu() override;
+
         //! add relaxation to wake system
         virtual void relax();
 		//! add new particles
@@ -260,6 +266,8 @@ class __interaction : public __system{
 		 * \param rate		Wake rate
 		 */
 		virtual void getIdealRates(gsl_vector *rate);
+
+
 };
 }
 #endif

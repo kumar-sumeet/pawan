@@ -21,7 +21,8 @@ __device__ inline void VORSTRETCH_GPU(const double &q, const double &F, const do
 __device__ inline void DIFFUSION_GPU(double nu, double sigma, double Z, const double4 &source_vorticity,
                                      const double4 &target_vorticity, double3 &retvorcity );
 //Math functions
-
+template<typename A,typename B>
+__device__  inline void add(A &a, B b);
 __device__  inline void subtract(double3 &a, double3 b);
 __device__ inline double dot_product(const double3 &a, const double3 &b);
 __device__ inline double dnrm2(double3 v);
@@ -57,7 +58,9 @@ __device__ inline void INTERACT_GPU(const double nu,
 
     KERNEL_GPU(rho,sigma,q,F,Z);
     // Velocity computation of source
-    VELOCITY_GPU(-q,target_vorticity,displacement,velocity);
+    double3 vel;
+    VELOCITY_GPU(-q,target_vorticity,displacement,vel);
+    add(velocity, vel); //TODO
 
     // Rate of change of vorticity computation
     VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
@@ -153,6 +156,18 @@ __device__ inline void DIFFUSION_GPU(const double nu,
 //Math functions
 
 /*
+ * add b to a and save the result in a
+ * As a template to allow usage of double4 and double3
+ * only considers x,y,z
+ */
+template<class A, class B>
+__device__  inline void add(A &a, const B b) {
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+}
+
+/*
  * subtract b from a and save the result in a
  */
 __device__  inline void subtract(double3 &a, const double3 b) {
@@ -190,6 +205,7 @@ __device__ void scale(double a, double3 &v) {
 /*
  * cross product
  * As a template to allow usage of double4 and double3
+ * only considers x,y,z
  */
 template<typename A,typename B>
 __device__ inline void cross(const A &a, const B &b, double3 &target) {

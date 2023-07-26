@@ -71,6 +71,22 @@ class __system{
 		 */
 		virtual void getStates(gsl_vector *state){};
 
+        /*!
+         * copy particles from buffer for GPU to the wakes
+         * pointer should be actually double4
+         */
+        virtual void setParticles(double *particles) = 0;
+        /*!
+         * copy particles from the wakes to a buffer for GPU
+         * pointer should be actually double4
+         */
+        virtual void getParticles(double *particles) = 0;
+        virtual int amountParticles() = 0;
+        virtual double getNu() = 0;
+
+
+
+
         //! add relaxation to wake system
         virtual void relax(){};
         //! add new particles
