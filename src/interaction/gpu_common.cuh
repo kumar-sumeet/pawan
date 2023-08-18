@@ -16,6 +16,7 @@
  * rates[2 * i] : velocity
  * rates[2 * i + 1] : change in vorticity
  */
+
 constexpr size_t threadBlockSize = 128;
 
 

@@ -210,7 +210,7 @@ void resizeToFit(double4 *cpu, double4 *gpu1, double4 *gpu2, size_t &size, int p
 
     if(neededsize > size){
         while(neededsize > size){
-            size += 1.5;
+            size *= 1.5;
         }
 
         checkGPUError(cudaFree(gpu1));

@@ -18,8 +18,14 @@
 
 using namespace pawan;
 
-constexpr double epsilon = 1e-10;
-
+//constexpr double epsilon = 1e-13;
+constexpr double epsilonsToTest[]{
+        1e-10,
+        1e-11,
+        1e-12,
+        1e-13,
+        1e-14
+};
 
 //output errors with location
 bool closeToZero(double gpuV);
@@ -93,12 +99,12 @@ bool testSingleInteract(double nu, double s_src, double s_trg, gsl_vector *r_src
     //std::cout << "GPU retvorticity " << retVals[1].x << ", " << retVals[1].y << ", " << retVals[1].z << "\n";
 
 
-    bool equal = gsl_fcmp(retVals[0].x, vx_s, epsilon) == 0
-                 && gsl_fcmp(retVals[0].y, vy_s, epsilon) == 0
-                 && gsl_fcmp(retVals[0].z, vz_s, epsilon) == 0
-                 && gsl_fcmp(retVals[1].x, qx_s, epsilon) == 0
-                 && gsl_fcmp(retVals[1].y, qy_s, epsilon) == 0
-                 && gsl_fcmp(retVals[1].z, qz_s, epsilon) == 0;
+    bool equal = gsl_fcmp(retVals[0].x, vx_s, epsilonsToTest[0]) == 0
+                 && gsl_fcmp(retVals[0].y, vy_s, epsilonsToTest[0]) == 0
+                 && gsl_fcmp(retVals[0].z, vz_s, epsilonsToTest[0]) == 0
+                 && gsl_fcmp(retVals[1].x, qx_s, epsilonsToTest[0]) == 0
+                 && gsl_fcmp(retVals[1].y, qy_s, epsilonsToTest[0]) == 0
+                 && gsl_fcmp(retVals[1].z, qz_s, epsilonsToTest[0]) == 0;
 
     checkGPUError(cudaFree(data));
     checkGPUError(cudaFree(retVals));
@@ -108,7 +114,9 @@ bool testSingleInteract(double nu, double s_src, double s_trg, gsl_vector *r_src
     return equal;
 }
 
-
+//e-13: 0.18 %
+//e-15: 2.12 %
+//e-17: 9.76 %
 void testInteractWithRandomValues() {
     gsl_vector *r_src = gsl_vector_alloc(3); //Position
     gsl_vector *a_src = gsl_vector_alloc(3); //vorticity
@@ -152,11 +160,11 @@ void testInteractWithRandomValues() {
         double v_src = gsl_rng_uniform(r);
 
         if(!testSingleInteract(nu, s_src, s_trg, r_src, r_trg, a_src, a_trg, v_src, v_trg)){
-            std::cout << "Number "<< i << " is wrong! nu:" << nu << " s: " << s_src << ", " << s_trg << " v: " <<v_src << ", " << v_trg << "\n";
+            /*std::cout << "Number "<< i << " is wrong! nu:" << nu << " s: " << s_src << ", " << s_trg << " v: " <<v_src << ", " << v_trg << "\n";
             OUT("source pos",r_src);
             OUT("target pos",r_trg);
             OUT("source vor",a_src);
-            OUT("target vor",a_trg);
+            OUT("target vor",a_trg);*/
             wrong++;
         }
     }
@@ -169,36 +177,39 @@ void testInteractWithRandomValues() {
 }
 
 void compare_equal(gsl_vector *gpu, gsl_vector *cpu, int size, int offset) {
-    int wrong = 0;
-    std::cout << "Position\n";
-    for(int i = 0; i < size; i++){
-        double gpu_v = gsl_vector_get(gpu,i);
-        double cpu_v = gsl_vector_get(cpu,i);
-
-        if(0 != gsl_fcmp(gpu_v,cpu_v, epsilon)  && ! ( closeToZero(gpu_v) && closeToZero(cpu_v)) ){
-            std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index " << i <<".\n";
-            wrong++;
-        }
-    }
-
-    if(offset != 0) {
-        std::cout << "Vorticity\n";
-
-        for (int i = offset; i < offset + size; i++) {
+    for(double epsilon : epsilonsToTest) {
+        int wrong = 0;
+        std::cout << "Position\n";
+        for (int i = 0; i < size; i++) {
             double gpu_v = gsl_vector_get(gpu, i);
             double cpu_v = gsl_vector_get(cpu, i);
 
-            if (0 != gsl_fcmp(gpu_v, cpu_v, epsilon) && ! ( closeToZero(gpu_v) && closeToZero(cpu_v)) ) {
-                std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index "
-                          << i - offset << ".\n";
+            if (0 != gsl_fcmp(gpu_v, cpu_v, epsilon) && !(closeToZero(gpu_v) && closeToZero(cpu_v))) {
+                /*std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index " << i
+                          << ".\n";*/
                 wrong++;
             }
         }
-    }
-    if(wrong == 0){
-        std::cout << "No error found";
-    } else {
-        std::cout << wrong << " differences  (" << (100.0 * wrong) / (size * (offset == 0 ? 1 : 2)) << " %)";
+
+        if (offset != 0) {
+            std::cout << "Vorticity\n";
+
+            for (int i = offset; i < offset + size; i++) {
+                double gpu_v = gsl_vector_get(gpu, i);
+                double cpu_v = gsl_vector_get(cpu, i);
+
+                if (0 != gsl_fcmp(gpu_v, cpu_v, epsilon) && !(closeToZero(gpu_v) && closeToZero(cpu_v))) {
+                    /*std::cout << "Different result on gpu (" << gpu_v << ") and cpu (" << cpu_v << ") at index "
+                              << i - offset << ".\n";*/
+                    wrong++;
+                }
+            }
+        }
+        if (wrong == 0) {
+            std::cout << "No error found with epsilon " << epsilon << "\n";
+        } else {
+            std::cout << wrong << " differences  (" << (100.0 * wrong) / (size * (offset == 0 ? 1 : 2)) << " %) with epsilon " << epsilon << "\n";
+        }
     }
 }
 
@@ -206,6 +217,14 @@ bool closeToZero(double gpuV) {
     return abs(gpuV) < 1e-15;
 }
 
+/*
+1 differences  (2.3809523809523812e-03 %) with epsilon 1.0000000000000001e-09
+2 differences  (4.7619047619047623e-03 %) with epsilon 9.9999999999999994e-12
+25 differences  (5.9523809523809521e-02 %) with epsilon 9.9999999999999998e-13
+378 differences  (9.0000000000000002e-01 %) with epsilon 1.0000000000000000e-13
+4331 differences  (1.0311904761904762e+01 %) with epsilon 1.0000000000000000e-14
+31256 differences  (7.4419047619047618e+01 %) with epsilon 1.0000000000000001e-15
+ */
 void singleStep(){
     unsigned long int seed1 = 53478496;
     unsigned long int seed2 = 3543753850;
@@ -239,7 +258,7 @@ void singleStep(){
     std::cout << "Solve CPU\n";
     interactionCPU->solve();
 
-    std::cout << "compare (with epsilon " << epsilon << ")\n";
+    std::cout << "compare\n";
     gsl_vector *ratesGPU = gsl_vector_calloc(wakeGPU._size + wakeGPU2._size);
     gsl_vector *ratesCPU = gsl_vector_calloc(wakeCPU._size + wakeCPU2._size);
 
@@ -248,6 +267,14 @@ void singleStep(){
 
     compare_equal(ratesGPU, ratesCPU, wakeGPU._size + wakeGPU2._size, 0);
 }
+
+/*
+No error found with epsilon 1.0000000000000000e-10
+No error found with epsilon 9.9999999999999994e-12
+7 differences  (5.9003017582899241e-03 %) with epsilon 9.9999999999999998e-13
+393 differences  (3.3125979871542000e-01 %) with epsilon 1.0000000000000000e-13
+6303 differences  (5.3128002832144841e+00 %) with epsilon 1.0000000000000000e-14
+ */
 
 void wholeIntegration(){
     /*
@@ -300,7 +327,7 @@ void wholeIntegration(){
 
     INvringCPU->integrate(SvringCPU,IOvringCPU,false);
 
-    std::cout << "compare (with epsilon " << epsilon << ")\n";
+    std::cout << "compare\n";
     gsl_vector *statesGPU = gsl_vector_calloc(wakeGPU->_maxsize);
     gsl_vector *statesCPU = gsl_vector_calloc(wakeCPU->_maxsize);
 

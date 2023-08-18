@@ -36,7 +36,7 @@ int main(int argc, char* argv[]){
     std::cout << std::setprecision(16) << std::scientific;
     PAWAN();
 
-    test();
+    //test();
 
     /*
 
@@ -156,7 +156,7 @@ int main(int argc, char* argv[]){
     IN->integrate(S,IO,&networkCommunicatorTest);
 */
 
-/*
+
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
    // pawan::__wake *W = new pawan::__vring(1.0,0.1,1,10,0.1);
   //  pawan::__io *IOvring = new pawan::__io("vring4by80_euler_gpu");
@@ -175,17 +175,16 @@ int main(int argc, char* argv[]){
     S->diagnose();
     S->solve();
     W->print();
-    */
-
-/*
-    pawan::__io *IOvring = new pawan::__io("ring");
 
 
-    pawan::__wake *W = new pawan::__ring(1.0,5.0,0.1,5);
+    //pawan::__io *IOvring = new pawan::__io("ring");
+
+
+    //pawan::__wake *W = new pawan::__ring(1.0,5.0,0.1,5);
     pawan::__wake *Wvring = new pawan::__wake(W);
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
     pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    pawan::__integration *INvring = new pawan::gpu_euler(0.5,10);
+    pawan::__integration *INvring = new pawan::gpu_euler(5,100);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
     INvring->integrate(Svring,IOvring,false);
@@ -198,7 +197,7 @@ int main(int argc, char* argv[]){
     delete Svring;
     delete INvring;
     delete IOvring;
-*/
+
     return EXIT_SUCCESS;
 
 }

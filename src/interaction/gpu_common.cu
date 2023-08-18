@@ -13,7 +13,7 @@ double4* copyParticlesToGPU(size_t size, pawan::__system *s) {
 
     //use this instead of malloc to have pinned memory and therefore a faster copy
     //TODO flags at initialisation? -> documentation
-    checkGPUError(cudaHostAlloc(&particlesBuffer, mem_size,cudaHostAllocWriteCombined));
+    checkGPUError(cudaHostAlloc(&particlesBuffer, mem_size,cudaHostAllocWriteCombined)); //We only write to this buffer -> use WriteCombine
     checkGPUError(cudaMalloc(&particlesGPU, mem_size));
 
     s->getParticles(reinterpret_cast<double*>(particlesBuffer));

@@ -60,7 +60,7 @@ __device__ inline void INTERACT_GPU(const double nu,
     // Velocity computation of source
     double3 vel;
     VELOCITY_GPU(-q,target_vorticity,displacement,vel);
-    add(velocity, vel); //TODO
+    add(velocity, vel);
 
     // Rate of change of vorticity computation
     VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);

@@ -46,7 +46,6 @@ namespace pawan {
         double4 * particlesGPU = copyParticlesToGPU(totalParticles,this);
 
         //allocate result array on GPU
-        //TODO: would double4 bring performance improvements? Maybe only if kept in memory
         double3 * ratesGPU;
         checkGPUError(cudaMalloc(&ratesGPU, totalParticles * 2 * sizeof(double3)));
 
