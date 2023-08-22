@@ -70,17 +70,21 @@ void pawan::gpu_euler::integrate(pawan::__system *S, pawan::__io *IO,
     S->getParticles(reinterpret_cast<double *>(cpuBuffer));
     checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
 
-    size_t threadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
 
     size_t stepnum = 0;
     while(_t <= opawanrecvdata.tfinal){
         OUT("\tTime",_t);
         OUT("\tStepNum",stepnum);
 
+        //number of particles might have changed
+        numberOfParticles = S->amountParticles();
+        mem_size = numberOfParticles * 2 * sizeof(double4);
+
         resizeToFit(cpuBuffer, gpuSource, gpuTarget, mem_size, S->amountParticles());
         S->getParticles(reinterpret_cast<double *>(cpuBuffer));
         checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
 
+        size_t threadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
         eulerKernel<<<threadBlocks, threadBlockSize>>>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt);
 
         checkGPUError(cudaMemcpy(cpuBuffer,gpuTarget,mem_size,cudaMemcpyDeviceToHost));
