@@ -30,17 +30,6 @@ constexpr double epsilonsToTest[]{
 //output errors with location
 bool closeToZero(double gpuV);
 
-#define checkGPUError(ans) checkGPUError_((ans), __FILE__, __LINE__)
-
-__inline__ void checkGPUError_(cudaError_t errorCode, const char* file, int line){
-
-    if(errorCode != cudaSuccess) {
-        //report error and stop
-        std::cout << "Cuda Error: " << cudaGetErrorString(errorCode) << "\nin " << file << ", line " << line;
-        exit(EXIT_FAILURE);
-    }
-}
-
 __global__ void testKernel(double nu,
                            const double4 *data,
                            double3 *returnVals){
@@ -250,7 +239,7 @@ void singleStep(){
     gsl_rng_set(r, seed2);
     test_wake wakeCPU2 = test_wake(size2, r);
 
-    __interaction *interactionGPU = new gpu(&wakeGPU, &wakeGPU2);
+    __interaction *interactionGPU = new gpu<>(&wakeGPU, &wakeGPU2);
     __interaction *interactionCPU = new __parallel(&wakeCPU, &wakeCPU2);
 
     std::cout << "Solve GPU\n";
@@ -316,7 +305,7 @@ void wholeIntegration(){
 
 
     pawan::__interaction *SvringGPU = new pawan::__parallel(wakeGPU);
-    pawan::__integration *INvringGPU = new pawan::gpu_euler(5,100);
+    pawan::__integration *INvringGPU = new pawan::gpu_euler<>(5,100);
 
     INvringGPU->integrate(SvringGPU,IOvringGPU,false);
 
@@ -337,6 +326,353 @@ void wholeIntegration(){
     compare_equal(statesGPU, statesCPU, wakeGPU->_numParticles * 3, wakeGPU->_maxsize/2);
 
 
+}
+
+void measure(pawan::__interaction *pInteraction) {
+
+    int iterations = 5;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    for(int i = 0; i < iterations; i++){
+        pInteraction->solve();
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::cout << "average time: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count() / iterations
+              << " milliseconds\n";
+}
+
+void testParameters(){
+    std::cout << "Setup\n";
+    unsigned long int seed1 = 17478738;
+
+    int size1 = 500000;
+
+    gsl_rng * r;
+    const gsl_rng_type * T;
+
+    gsl_rng_env_setup();
+    T = gsl_rng_default;
+    r = gsl_rng_alloc (T);
+
+    {
+        //warmup so that GPU can initialise
+        {
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<>(&wakeGPU);
+            interactionGPU->solve();
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 512, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 512, unrollFactor = 64;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 512, unrollFactor = 128;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 512, unrollFactor = 256;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 512, unrollFactor = 512;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 256, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 256, unrollFactor = 32;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 256, unrollFactor = 64;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 256, unrollFactor = 128;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 256, unrollFactor = 256;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 128, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 128, unrollFactor = 16;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 128, unrollFactor = 32;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 128, unrollFactor = 64;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 128, unrollFactor = 128;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 64, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 64, unrollFactor = 8;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 64, unrollFactor = 16;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 64, unrollFactor = 32;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 64, unrollFactor = 64;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 32, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 32, unrollFactor = 2;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 32, unrollFactor = 4;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 32, unrollFactor = 8;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 16, unrollFactor = 1;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 16, unrollFactor = 2;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 16, unrollFactor = 4;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+
+        {
+            constexpr int threadblocks = 16, unrollFactor = 8;
+            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
+                      << "\n";
+            gsl_rng_set(r, seed1);
+            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
+            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
+            measure(interactionGPU);
+            delete interactionGPU;
+        }
+    }
 }
 
 

@@ -18,7 +18,7 @@ pawan::__interaction::__interaction(){
 	_totalVorticity = gsl_vector_calloc(3);
 	_linearImpulse = gsl_vector_calloc(3);
 	_angularImpulse = gsl_vector_calloc(3);
-    printf("_nu = %+8.3e\n",_nu);
+    //printf("_nu = %+8.3e\n",_nu);
 }
 
 pawan::__interaction::__interaction(__wake *W):__interaction(){
@@ -47,8 +47,8 @@ void pawan::__interaction::addWake(__wake *W){
 	_size = W->_size; //temp fix for Vring
     _totalmaxsize+= W->_maxsize;
 	_nWake++;
-    printf("Position of 1st particle     interaction,addWake(): %+8.3e, %+8.3e, %+8.3e\n",
-           gsl_matrix_get(W->_position, 0, 0),gsl_matrix_get(W->_position, 0, 1),gsl_matrix_get(W->_position, 0, 2));
+    //printf("Position of 1st particle     interaction,addWake(): %+8.3e, %+8.3e, %+8.3e\n",
+    //       gsl_matrix_get(W->_position, 0, 0),gsl_matrix_get(W->_position, 0, 1),gsl_matrix_get(W->_position, 0, 2));
 }
 
 void pawan::__interaction::solve(){
