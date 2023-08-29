@@ -36,6 +36,19 @@ __global__ void testKernel(double nu,
     INTERACT_GPU(nu, data[0], data[2], data[1], data[3], returnVals[0], returnVals[1]);
 }
 
+void measure(pawan::__interaction *pInteraction) {
+
+    int iterations = 20;
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    for(int i = 0; i < iterations; i++){
+        pInteraction->solve();
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::cout << "average time: "
+              << ((double) std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()) / iterations
+              << " milliseconds\n";
+}
 
 
 bool testSingleInteract(double nu, double s_src, double s_trg, gsl_vector *r_src, gsl_vector *r_trg, gsl_vector *a_src,
@@ -328,20 +341,6 @@ void wholeIntegration(){
 
 }
 
-void measure(pawan::__interaction *pInteraction) {
-
-    int iterations = 5;
-
-    auto t1 = std::chrono::high_resolution_clock::now();
-    for(int i = 0; i < iterations; i++){
-        pInteraction->solve();
-    }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "average time: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count() / iterations
-              << " milliseconds\n";
-}
-
 void testParameters(){
     std::cout << "Setup\n";
     unsigned long int seed1 = 17478738;
@@ -375,7 +374,8 @@ void testParameters(){
             measure(interactionGPU);
             delete interactionGPU;
         }
-
+        /*
+        //Adding all of these will slow down compilation significantly!
         {
             constexpr int threadblocks = 512, unrollFactor = 64;
             std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
@@ -672,6 +672,7 @@ void testParameters(){
             measure(interactionGPU);
             delete interactionGPU;
         }
+         */
     }
 }
 

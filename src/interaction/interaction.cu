@@ -11,8 +11,8 @@
 pawan::__interaction::__interaction(){
     DOUT("--------------------------------in pawan::__interaction::__interaction()");
 	//_nu = 2.0e-2;
-	//_nu = 2.5e-3;
-    _nu = 1.56e-5;
+	//_nu = 2.5e-3;   //vring
+    _nu = 1.56e-5;    //coupling
     //_nu = 0.0;
 	_nWake = 0;
 	_totalVorticity = gsl_vector_calloc(3);
@@ -364,18 +364,18 @@ void pawan::__interaction::getStates(gsl_vector *state){
 	}
 }
 
-void pawan::__interaction::relax(){
+void pawan::__interaction::relax(size_t &stepnum){
     size_t offset = 0;
     for(auto &w: _W){
-        w->relax();
+        w->relax(stepnum);
         offset += w->_maxsize;
     }
 }
 
-void pawan::__interaction::addParticles(PawanRecvData pawanrecvdata){
+void pawan::__interaction::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
     size_t offset = 0;
     for(auto &w: _W){
-        w->addParticles(pawanrecvdata);
+        w->addParticles(pawanrecvdata,stepnum);
         offset += w->_maxsize;
     }
 }
@@ -462,7 +462,10 @@ void pawan::__interaction::getVi(const gsl_vector *r, gsl_vector *vi, const size
             gsl_vector_sub(displacement, &ipos.vector);
             double rho = gsl_blas_dnrm2(displacement);
             double q = 0.0, F = 0.0, Z = 0.0;
-            KERNEL(rho, sigma, q, F, Z);
+            //TODO: needed this to compile, but do not know what it should do!!
+            double n_;
+
+            KERNEL(rho, sigma, q, F, Z, n_);
             //if(i%17==0 && n==8)
                 //printf("q = %10.5e \t",q);
             // Velocity computation

@@ -117,12 +117,21 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
         checkGPUError(cudaMemcpy(cpuBuffer,gpuTarget,mem_size,cudaMemcpyDeviceToHost));
         S->setParticles(reinterpret_cast<double *>(cpuBuffer));
 
-        //S->relax();
+        //S->relax(stepnum);
         if(diagnose){
             S->diagnose();
             fwrite(&_t,sizeof(double),1,fdiag);
             S->writediagnosis(fdiag);
         }
+        int transient_steps = 360;
+        if (stepnum < transient_steps) {
+            printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
+            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 15 * (transient_steps - stepnum) / transient_steps;
+            printf("Vinf + suppress = %3.2e, %3.2e, %3.2e", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1],
+                   opawanrecvdata.Vinf[2]);
+        }
+
+
         S->updateVinfEffect(opawanrecvdata.Vinf,opawanrecvdata.deltat);
         //S->updateBoundVorEffect(&opawanrecvdata,_dt);
         fwrite(&_t,sizeof(double),1,f);
@@ -133,14 +142,14 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
         networkCommunicatorTest->send_data(opawansenddata);
 
         //S->diagnose();
+        stepnum = stepnum+1;
         if(_t <= (opawanrecvdata.tfinal - 1*opawanrecvdata.deltat)){ //run till end of dymore sim
             networkCommunicatorTest->recieve_data(opawanrecvdata);
-            S->addParticles(&opawanrecvdata);
+            S->addParticles(&opawanrecvdata, stepnum);
             _t = opawanrecvdata.t;
         }
         else
             break;
-        stepnum = stepnum+1;
     }
     fclose(f);
     auto tEnd = std::chrono::high_resolution_clock::now();

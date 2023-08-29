@@ -37,6 +37,11 @@ inline double QSIG(	const double &rho,
 	return 0.25*M_1_PI*rho_bar2*rho_bar*(rho_bar2 + 2.5)/pow(rho_bar2 + 1.0,2.5)/rho3;
 };
 
+inline double ETASIG(const double &rho, const double &sigma){
+    double rho_bar = rho/sigma;
+    return 13.125*M_1_PI/pow(rho_bar*rho_bar + 1.0,4.5)/pow(sigma,3);
+};
+
 /*! \fn inline void KERNEL(const double &rho, const double &sigma, double &q, double &F, double &Z)
  * \brief Compute velocity induced by vortex particle kernel
  * \param	rho		double distance
@@ -49,11 +54,13 @@ inline void KERNEL(	const double &rho,
 			const double &sigma, 
 			double &q, 
 			double &F, 
-			double &Z){
+			double &Z,
+			double &n){
     //DOUT("----------------KERNEL()--------------");
 	Z = ZETASIG(rho,sigma);
 	q = QSIG(rho,sigma);
-	F = (Z - 3*q)/gsl_pow_2(rho);
+	n = ETASIG(rho,sigma);
+	F = (Z - 3.0*q)/gsl_pow_2(rho);
 };
 
 /*! \fn inline void ENST(const double &rho, const double &sigma, double &q)

@@ -78,19 +78,27 @@ void pawan::__integration::integrate(__system *S,
     }
 
     size_t stepnum = 0;
-    while(_t <= opawanrecvdata.tfinal){
-        OUT("\tTime",_t);
-        OUT("\tStepNum",stepnum);
+    while(_t <= opawanrecvdata.tfinal) {
+        OUT("\tTime", _t);
+        OUT("\tStepNum", stepnum);
+        gsl_vector_set_zero(states);
         S->getStates(states);
-        step(opawanrecvdata.deltat,S,states);
-        S->relax();
-        if(diagnose){
+        step(opawanrecvdata.deltat, S, states);
+        S->relax(stepnum);
+        if (diagnose) {
             S->diagnose();
-            fwrite(&_t,sizeof(double),1,fdiag);
+            fwrite(&_t, sizeof(double), 1, fdiag);
             S->writediagnosis(fdiag);
         }
+        int transient_steps = 360;
+        if (stepnum < transient_steps) {
+            printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
+            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 15 * (transient_steps - stepnum) / transient_steps;
+            printf("Vinf + suppress = %3.2e, %3.2e, %3.2e", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1],
+                   opawanrecvdata.Vinf[2]);
+        }
         S->updateVinfEffect(opawanrecvdata.Vinf,opawanrecvdata.deltat);
-        //S->updateBoundVorEffect(&opawanrecvdata,_dt);
+        S->updateBoundVorEffect(&opawanrecvdata,_dt);
         fwrite(&_t,sizeof(double),1,f);
         S->write(f);  //write particles info after interaction in this time step
 
@@ -99,14 +107,15 @@ void pawan::__integration::integrate(__system *S,
         networkCommunicatorTest->send_data(opawansenddata);
 
         //S->diagnose();
+        stepnum = stepnum+1;
         if(_t <= (opawanrecvdata.tfinal - 1*opawanrecvdata.deltat)){ //run till end of dymore sim
             networkCommunicatorTest->recieve_data(opawanrecvdata);
-            S->addParticles(&opawanrecvdata);
+            S->addParticles(&opawanrecvdata, stepnum);
             _t = opawanrecvdata.t;
         }
         else
             break;
-        stepnum = stepnum+1;
+
     }
     fclose(f);
     double tEnd = TIME();

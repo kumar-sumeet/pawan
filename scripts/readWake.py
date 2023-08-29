@@ -20,9 +20,9 @@ class readWake:
         vector  _volume
         vector  _birthstrength
     """
-    def __init__(self,fileName):
+    def __init__(self,wakefilepath):
         ''" Constructor """
-        with open(fileName, mode='rb') as file:
+        with open(wakefilepath, mode='rb') as file:
             fileContent = file.read()
         self.fileSize = len(fileContent)
         self.time = []
@@ -35,8 +35,11 @@ class readWake:
         self.volume = []
         self.birthstrength = []
         stepnum=0
-        while len(fileContent)>0:
+        datasize_onetimestep = 1
+        while len(fileContent)>=datasize_onetimestep: #assumes that atleast one time step worth of data is in the wake binary file
             [t,nmax,n,p,q,r,a,v,b,fileContent] = self.getAllWakeState(fileContent)
+            if stepnum ==0: 
+                datasize_onetimestep = self.fileSize - len(fileContent)
             self.time.append(t)
             self.nParticlesMax.append(nmax)
             self.nParticles.append(n)
@@ -47,9 +50,14 @@ class readWake:
             self.volume.append(v)
             self.birthstrength.append(b)
             stepnum=stepnum+1
-            # if stepnum>100: break
-        self.nTimesteps = len(self.time)
-    
+            print('\r Reading ', wakefilepath.split('/')[-1],': ',int(100*(self.fileSize - len(fileContent))/self.fileSize),'% COMPLETE', end='')
+            # if stepnum==700:
+            #     break
+        if len(self.time):
+            self.nTimesteps = len(self.time)
+        else:
+            print(f"File at {wakefilepath} is empty")
+        
     def getInteger(self,fileContent):
         """ getInteger returns an integer 
         """

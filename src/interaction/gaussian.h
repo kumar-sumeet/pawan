@@ -48,13 +48,15 @@ inline void KERNEL(	const double &rho,
 			const double &sigma, 
 			double &q, 
 			double &F, 
-			double &Z){
+			double &Z,
+			double &n){
 	double rho_bar = rho/sigma;
 	double sig3 = sigma*sigma*sigma;
 	Z = ZETASIG(rho,sigma);
 	double phi = 0.25*M_1_PI*erf(M_SQRT1_2*rho_bar)/sig3;
 	q = (phi/rho_bar - Z)/gsl_pow_2(rho_bar);
-	F = (Z - 3*q)/gsl_pow_2(rho);
+	n = ZETASIG(rho,sigma);
+	F = (Z - 3.0*q)/gsl_pow_2(rho);
 };
 
 /*! \fn inline double ENST(const double &rho, const double &sigma, double &q)

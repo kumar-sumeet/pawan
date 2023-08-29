@@ -10,8 +10,8 @@
 #ifndef WAKE_UTILS_H_
 #define WAKE_UTILS_H_
 
-#define HIGHORDER 1
-#define GAUSSIAN 0
+#define HIGHORDER 0
+#define GAUSSIAN 1
 
 #include "src/utils/gsl_utils.h"
 #include <gsl/gsl_blas.h>
@@ -298,7 +298,7 @@ inline double KINETICENERGY(	const double &s1,
 	double x12a2 = 0.0;
 	gsl_blas_ddot(x12,a2,&x12a2);
 	
-	// KE = (1/16 pi).((rho^2 + 2.sigma^2)*(a1.a2) + (x12.a1).(x12.a2))/(rho^2 + sigma^2)^3/2
+	// KE = (1/16 pi).((rho^2 + 2.sigma^2)*(a1.a2) + (x12.a1)(x12.a2))/(rho^2 + sigma^2)^3/2
 	double KE = ((rho2 + 2.0*sigma2)*a1a2 + (x12a1*x12a2))/pow(rho2 + sigma2,1.5)/16.0/M_PI;
 
     gsl_vector_free(x12);
@@ -334,7 +334,7 @@ inline double KINETICENERGYF(	const double &s1,
  * \brief Compute rate of change of vorticity due to viscous diffusion
  * \param	nu			double viscosity
  * \param	sigma			double smoothing radius
- * \param	Z			double Z kernel
+ * \param	n			double eta kernel
  * \param	source_vorticity	gsl vector source vorticity
  * \param	target_vorticity	gsl vector target vorticity
  * \param	source_volume		double source volume
@@ -343,11 +343,11 @@ inline double KINETICENERGYF(	const double &s1,
  */
 inline void DIFFUSION(	const double &nu,
 			const double &sigma, 
-			const double &Z, 
+			const double &n,
 			const gsl_vector *source_vorticity, 
 			const gsl_vector *target_vorticity, 
 			const double &source_volume, 
-			const double &target_volume, 
+			const double &target_volume,
 			gsl_vector *retvorcity ){
 
 	//DOUT("---------------DIFFUSION()---------------");
@@ -367,7 +367,7 @@ inline void DIFFUSION(	const double &nu,
 	double sig12 = 0.5*sigma*sigma;
 	gsl_vector_memcpy(dva,va12);
 	gsl_vector_sub(dva,va21);
-	gsl_blas_dscal(Z*nu/sig12,dva);
+	gsl_blas_dscal(n*nu/sig12,dva);
 	
 	// da = da + dva
 	gsl_vector_add(retvorcity,dva);
@@ -410,8 +410,8 @@ inline void INTERACT(	const double &nu,
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
-	KERNEL(rho,sigma,q,F,Z);
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
+	KERNEL(rho,sigma,q,F,Z,n);
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
@@ -425,7 +425,7 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source
@@ -472,13 +472,13 @@ inline void INTERACT(	const double &nu,
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
 	// Target
-	KERNEL(rho,sigma,q,F,Z);
+	KERNEL(rho,sigma,q,F,Z,n);
 	VELOCITY(q,a_source,displacement,dr);
 	gsl_vector_add(dr_target,dr);
 	// Source
@@ -488,7 +488,7 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source
@@ -543,13 +543,13 @@ inline void INTERACT(	const double &nu,
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
 	// Target
-	KERNEL(rho,sigma,q,F,Z);
+	KERNEL(rho,sigma,q,F,Z,n);
 	VELOCITY(q,a_source,displacement,dr);
 	gsl_vector_add(dr_target,dr);
 	// Source
@@ -561,7 +561,7 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source

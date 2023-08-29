@@ -1,6 +1,8 @@
 #ifndef PAWAN_INTERACTION_UTILS_GPU_CUH
 #define PAWAN_INTERACTION_UTILS_GPU_CUH
 
+//TODO: this uses the highorder and not gaussian method ?!
+//-> add switching mechanism??
 __device__ inline void INTERACT_GPU(double nu,
                                     const double4 &source_pos,
                                     const double4 &target_pos,
@@ -71,7 +73,7 @@ __device__ inline void INTERACT_GPU(const double nu,
 __device__ inline void KERNEL_GPU(const double rho, const double sigma, double &q, double &F, double &Z) {
     Z = ZETASIG_GPU(rho,sigma);
     q = QSIG_GPU(rho, sigma);
-    F = (Z - 3*q)/(rho * rho);
+    F = (Z - 3.0*q)/(rho * rho);
 
 }
 

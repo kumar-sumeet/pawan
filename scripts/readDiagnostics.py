@@ -12,9 +12,9 @@ import argparse as ap
 
 class readDiagnostics:
 
-    def __init__(self,fileName):
+    def __init__(self,diagfilepath):
         ''" Constructor """
-        with open(fileName, mode='rb') as file:
+        with open(diagfilepath, mode='rb') as file:
             fileContent = file.read()
         self.fileSize = len(fileContent)
         self.time = []
@@ -27,11 +27,14 @@ class readDiagnostics:
         self.kineticenergy = []
         self.kineticenergyF = []
         self.centroidpos = []
-        
+        stepnum=0
         self.nu = struct.unpack("d", fileContent[:8])[0]
-        fileContent = fileContent[8:]        
-        while len(fileContent)>0:
+        fileContent = fileContent[8:]   
+        datasize_onetimestep=1
+        while len(fileContent)>=datasize_onetimestep:
             [t,tv,li,ai,h,e,ef,ke,kef,cp,fileContent] = self.getSimulationDiagnostics(fileContent)
+            if stepnum ==0: 
+                datasize_onetimestep = self.fileSize - len(fileContent)
             self.time.append(t)
             self.totalvorticity.append(tv)
             self.linearimpulse.append(li)
@@ -42,7 +45,12 @@ class readDiagnostics:
             self.kineticenergy.append(ke)
             self.kineticenergyF.append(kef)
             self.centroidpos.append(cp)
-        self.nTimesteps = len(self.time)
+            stepnum=stepnum+1
+            print('\r Reading ', diagfilepath.split('/')[-1],': ',int(100*(self.fileSize - len(fileContent))/self.fileSize),'% COMPLETE', end='')
+        if len(self.time):
+            self.nTimesteps = len(self.time)
+        else:
+            print(f"File at {diagfilepath} is empty")
         
     def getDouble(self,fileContent):
         """ getDouble returns a double 

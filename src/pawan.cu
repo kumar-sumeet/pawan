@@ -22,39 +22,23 @@
 #include "src/integration/integration.h"
 #include "src/resolve/resolve.h"
 #include "src/integration/rk4.h"
+#include "src/integration/rk3.h"
 #include "src/networkinterface/networkdatastructures.h"
 #include "src/networkinterface/networkinterface.h"
 #include "src/networkinterface/networkinterface.cpp" //templates included this way
 #include "interaction/gpu.cuh"
 #include "integration/gpu_euler.cuh"
+#include "test.cuh"
 
 #define OUTPUTIP "127.0.0.1"
 #define NETWORKBUFFERSIZE 50
 #define PORT 8899
 
-void measure(pawan::__interaction *pInteraction) {
-
-    int iterations = 2;
-
-    auto t1 = std::chrono::high_resolution_clock::now();
-    for(int i = 0; i < iterations; i++){
-        pInteraction->solve();
-    }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "average time: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count() / iterations
-              << " microseconds\n";
-}
-
 int main(int argc, char* argv[]){
 
     std::cout << std::setprecision(16) << std::scientific;
     PAWAN();
-
-    //test();
-
-    /*
-
+/*
     //%%%%%%%%%%%%     Dymore coupling    %%%%%%%%%%%%%%%%%%
     NetworkInterfaceTCP<OPawanRecvData,OPawanSendData>
             networkCommunicatorTest(PORT, OUTPUTIP, PORT, NETWORKBUFFERSIZE, true);
@@ -72,25 +56,14 @@ int main(int argc, char* argv[]){
     delete IN;
     delete S;
     delete IOdym;
-
-     */
+*/
 /*
     //%%%%%%%%%%%%     Fusion rings    %%%%%%%%%%%%%%%%%%
-    //pawan::__wake *W1 = new pawan::__vring(1.0,0.1,4,80,0.1);
-    //pawan::__io *IOvring1 = new pawan::__io("vring4by80_1");
-    //pawan::__wake *W2 = new pawan::__vring(1.0,0.1,4,80,0.1);
-    //pawan::__io *IOvring2 = new pawan::__io("vring4by80_2");
-    //pawan::__io *IOvrings = new pawan::__io("vring4by80_vring4by80_eulerfusion");
-    //pawan::__wake *W1 = new pawan::__vring(1.0,0.1,5,100,0.0840);
-    //pawan::__io *IOvring1 = new pawan::__io("vring5by100_1");
-    //pawan::__wake *W2 = new pawan::__vring(1.0,0.1,5,100,0.0840);
-    //pawan::__io *IOvring2 = new pawan::__io("vring5by100_2");
-    //pawan::__io *IOvrings = new pawan::__io("vring5by100_vring5by100_eulerfusion");
     pawan::__wake *W1 = new pawan::__vring(1.0,0.1,3,49,0.1924);
     pawan::__io *IOvring1 = new pawan::__io("vring3by49_1");
     pawan::__wake *W2 = new pawan::__vring(1.0,0.1,3,49,0.1924);
     pawan::__io *IOvring2 = new pawan::__io("vring3by49_2");
-    pawan::__io *IOvrings = new pawan::__io("vring3by49_vring3by49_eulerfusion");
+    pawan::__io *IOvrings = new pawan::__io("vring3by49vring3by49fusion_rk4");
 
     //pawan::__interaction *S = new pawan::__interaction(W1);
     pawan::__interaction *S1 = new pawan::gpu(W1);
@@ -104,13 +77,14 @@ int main(int argc, char* argv[]){
 
     pawan::__wake *Wvring1 = new pawan::__wake(W1);
     pawan::__wake *Wvring2 = new pawan::__wake(W2);
-    Wvring1->rotate(1,M_1_PI/6);  //rotate about y-axis by 15 deg
-    Wvring2->rotate(1,-M_1_PI/6); //rotate about y-axis by -15 deg
+    Wvring1->rotate(1,M_1_PI/12);  //rotate about y-axis by 15 deg
+    Wvring2->rotate(1,-M_1_PI/12); //rotate about y-axis by -15 deg
     double translate_vec[3]={2.7,0.,0.};
     Wvring2->translate(translate_vec);
 
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::gpu(Wvring1,Wvring2);
+    pawan::__interaction *Svring = new pawan::gpu<>(Wvring1,Wvring2);
+    //pawan::__interaction *Svring = new pawan::__parallel(Wvring1,Wvring2);
 
     //relaxed -diverges at 196 steps, normal - diverges at 300
     pawan::__integration *INvring = new pawan::__integration(15,300);
@@ -136,10 +110,12 @@ int main(int argc, char* argv[]){
 */
 /*
     //%%%%%%%%%%%%     Fission-Fusion rings    %%%%%%%%%%%%%%%%%%
-    pawan::__wake *W1 = new pawan::__vring(1.0,0.1,4,80,0.1);
-    pawan::__io *IOvring1 = new pawan::__io("vring4by80_1");
-    pawan::__wake *W2 = new pawan::__vring(1.0,0.1,4,80,0.1);
-    pawan::__io *IOvring2 = new pawan::__io("vring4by80_2");
+    pawan::__wake *W1 = new pawan::__vring(1.0,0.125,2,52,0.1562);
+    pawan::__io *IOvring1 = new pawan::__io("vring2by52_1");
+    pawan::__wake *W2 = new pawan::__vring(1.0,0.125,2,52,0.1562);
+    pawan::__io *IOvring2 = new pawan::__io("vring2by52_2");
+    pawan::__io *IOvrings = new pawan::__io("vring2by52vring2by52fissionfusion_rk4");
+
     pawan::__interaction *S1 = new pawan::__parallel(W1);
     pawan::__interaction *S2 = new pawan::__parallel(W2);
     pawan::__resolve *R = new pawan::__resolve();
@@ -147,12 +123,11 @@ int main(int argc, char* argv[]){
     R->rebuild(S2,IOvring2);printf("resolved ring 1 \n");
     pawan::__wake *Wvring1 = new pawan::__wake(W1);
     pawan::__wake *Wvring2 = new pawan::__wake(W2);
-    Wvring1->rotate(1,M_1_PI/4); Wvring2->rotate(1,-M_1_PI/4);
-    double translate_vec[3]={2.7,0.,0.};Wvring2->translate(translate_vec);
+    Wvring1->rotate(1,M_1_PI/6); Wvring2->rotate(1,-M_1_PI/6);
+    double translate_vec[3]={3.0,0.,0.};Wvring2->translate(translate_vec);
     pawan::__interaction *Svring = new pawan::__parallel(Wvring1,Wvring2);
-    pawan::__integration *INvring = new pawan::gpu_euler<>(1,200);
-    pawan::__io *IOvrings = new pawan::__io("vring4by80_1and2_fissionfusion");
-    INvring->integrate(Svring,IOvrings,false);
+    pawan::__integration *INvring = new pawan::__rk4(30,600);
+    INvring->integrate(Svring,IOvrings,true);
     delete Svring;delete INvring;delete R;delete S1;delete S2;delete W1;delete W2;
     delete Wvring1;delete Wvring2;delete IOvring1;delete IOvring2;delete IOvrings;
 */
@@ -171,14 +146,14 @@ int main(int argc, char* argv[]){
     IN->integrate(S,IO,&networkCommunicatorTest);
 */
 
-/*
+
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
-   // pawan::__wake *W = new pawan::__vring(1.0,0.1,1,10,0.1);
-  //  pawan::__io *IOvring = new pawan::__io("vring4by80_euler_gpu");
+    //pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
+    //pawan::__io *IOvring = new pawan::__io("vring4by80_euler_gpu");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
     //pawan::__io *IOvring = new pawan::__io("vring_5by100");
     pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
-    pawan::__io *IOvring = new pawan::__io("vring_6by117_gpu_euler");
+    pawan::__io *IOvring = new pawan::__io("vring_6by117_gpu");
 
     //pawan::__interaction *S = new pawan::__interaction(W);
     pawan::__interaction *S = new pawan::__parallel(W);
@@ -191,89 +166,22 @@ int main(int argc, char* argv[]){
     S->solve();
     W->print();
 
-
-    //pawan::__io *IOvring = new pawan::__io("ring");
-
-
-    //pawan::__wake *W = new pawan::__ring(1.0,5.0,0.1,5);
     pawan::__wake *Wvring = new pawan::__wake(W);
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
     pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    pawan::__integration *INvring = new pawan::gpu_euler(5,100);
+    pawan::__integration *INvring = new pawan::gpu_euler<>(5,100);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
-    INvring->integrate(Svring,IOvring,false);
+    INvring->integrate(Svring,IOvring,true);
 
-
-    //delete R;
-    //delete S;
+    delete R;
+    delete S;
     delete W;
     delete Wvring;
     delete Svring;
     delete INvring;
     delete IOvring;
-*/
-
-    std::cout << "Setup\n";
-    unsigned long int seed1 = 17478738;
-
-    int size1 = 20000;
-
-    gsl_rng * r;
-    const gsl_rng_type * T;
-
-    gsl_rng_env_setup();
-    T = gsl_rng_default;
-    r = gsl_rng_alloc (T);
-
-    {
-        //warmup so that GPU can initialise
-        {
-            gsl_rng_set(r, seed1);
-            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
-            pawan::__interaction *interactionGPU = new pawan::gpu<>(&wakeGPU);
-            interactionGPU->solve();
-            delete interactionGPU;
-        }
-
-
-
-        {
-            constexpr int threadblocks = 128, unrollFactor = 1;
-            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
-                      << "\n";
-            gsl_rng_set(r, seed1);
-            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
-            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
-            measure(interactionGPU);
-            delete interactionGPU;
-        }
-
-        {
-            constexpr int threadblocks = 64, unrollFactor = 1;
-            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
-                      << "\n";
-            gsl_rng_set(r, seed1);
-            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
-            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
-            measure(interactionGPU);
-            delete interactionGPU;
-        }
-
-        {
-            constexpr int threadblocks = 64, unrollFactor = 2;
-            std::cout << "Testing with threadsblocks: " << threadblocks << " and unrollFactor: " << unrollFactor
-                      << "\n";
-            gsl_rng_set(r, seed1);
-            pawan::test_wake wakeGPU = pawan::test_wake(size1, r);
-            pawan::__interaction *interactionGPU = new pawan::gpu<threadblocks, unrollFactor>(&wakeGPU);
-            measure(interactionGPU);
-            delete interactionGPU;
-        }
-    }
 
     return EXIT_SUCCESS;
 
 }
-
-

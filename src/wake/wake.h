@@ -18,8 +18,8 @@
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#define SHEDVOR 1 //model only trail vortices if 0
-#define MAXNUMPARTICLES 80000 //max particles per wake
+#define SHEDVOR 0 //model only trail vortices if 0
+#define MAXNUMPARTICLES 100000 //max particles per wake
 
 namespace pawan{
 
@@ -42,6 +42,10 @@ class __wake{
         size_t _maxsize;			/*!< Max size of state vector with particle entries */
 		size_t _numParticles;		/*!< Number of vortex particles */
         size_t _maxnumParticles;	/*!< Max expected number of vortex particles */
+		size_t _npidx;              /*!< Particle tracking index when MAXNUMPARTICLES reached during coupling */
+        bool _maxmem;                /*!< tracks whether maximum memory reached */
+        gsl_vector *_lastsectpartnpidx;/*!< Particle index _npidx of last particle emanating from spanres section */
+        gsl_matrix *_initTEpos;		/*!< TE pos at first time step of simulation */
 		gsl_matrix *_position;		/*!< Particle positions */
 		gsl_matrix *_velocity;		/*!< Particle velocity */
 		gsl_matrix *_vorticity;		/*!< Particle vorticities */
@@ -75,18 +79,20 @@ class __wake{
 		virtual ~__wake();
 
         //! split particles in wake
-        virtual void split();
+        virtual void split(size_t &stepnum);
         //! merge particles in wake
-        virtual void merge();
+        virtual void merge(size_t &stepnum);
         //! add relaxation to wake
-        virtual void relax();
+        virtual void relax(size_t &stepnum);
         virtual void getlfnvec(double* vec,const double* mat,const int rowsize,const int axis,const int offset, const int size);
         //!Adds vortex particles as the Dymore coupling progresses
-        virtual void addParticles(PawanRecvData pawanrecvdata);
+        virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
         //! translate particles with Vinf
         virtual void updateVinfEffect(const double *Vinf, double &dt);
         //! translate particles due to induced vel from bound vortices
         virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt);
+        virtual void BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt);
+        virtual void BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt);
 		//! Print all wake particles
 		/*
 		 * Print wake particle information

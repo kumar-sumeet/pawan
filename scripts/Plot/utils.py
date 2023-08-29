@@ -11,6 +11,8 @@ import numpy as np
 def get_validationdata(data_dir,nu=0.0):
     if nu: #viscous case
         diagnostics_dictRefA9_5 = {
+                "vring3by49vring3by49fusion":{},
+                "vring2by52vring2by52fissionfusion":{},
                 "vring4by80":{},
                 "vring5by100":{},
                 "vring6by117":{
@@ -22,7 +24,7 @@ def get_validationdata(data_dir,nu=0.0):
                                 'Normalised Enstrophy (div-free)':genfromtxt(f'{data_dir}/Valentin2022/fig8b_e_ef.csv', delimiter=','),
                                 'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Valentin2022/fig8b_ke_kef.csv', delimiter=','),
                                 'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Valentin2022/fig8b_ke_kef.csv', delimiter=','),
-                                'Vc': genfromtxt(f'{data_dir}/Valentin2022/fig5b_vi.csv', delimiter=','),
+                                'Vc': genfromtxt(f'{data_dir}/Valentin2022/fig5b_vi_nondim.csv', delimiter=','),
                                 'KE_rate': genfromtxt(f'{data_dir}/Valentin2022/fig5b_dkedt.csv', delimiter=','),
                                 'nue':genfromtxt(f'{data_dir}/Valentin2022/fig5b_nue.csv', delimiter=','),
                                 },        
@@ -30,6 +32,19 @@ def get_validationdata(data_dir,nu=0.0):
         
         
         diagnostics_dictRefAT3 = {
+                "vring3by49vring3by49fusion":{
+                                'Normalised Linear Impulse':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ43_li.csv', delimiter=','),
+                                'Normalised Enstrophy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ43_e.csv', delimiter=','),
+                                'Normalised Enstrophy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ43_ef.csv', delimiter=','),
+                                'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ43_ke_kef.csv', delimiter=','),
+                                'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ43_ke_kef.csv', delimiter=','),
+                    
+                            },
+                "vring2by52vring2by52fissionfusion":{
+                                'Normalised Linear Impulse':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ45_li.csv', delimiter=','),
+                                'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ45_ke_kef.csv', delimiter=','),
+                                'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ45_ke_kef.csv', delimiter=','),                    
+                    },
                 "vring4by80":{
                             'Vc': genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_dXcdt_nc4.csv', delimiter=','),
                             },
@@ -40,8 +55,8 @@ def get_validationdata(data_dir,nu=0.0):
                                 'Normalised Linear Impulse':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_li.csv', delimiter=','),
                                 'Normalised Enstrophy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_e_ef.csv', delimiter=','),
                                 'Normalised Enstrophy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_e_ef.csv', delimiter=','),
-                                'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_ke.csv', delimiter=','),
-                                'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_ke.csv', delimiter=','),
+                                'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_ke_kef.csv', delimiter=','),
+                                'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_ke_kef.csv', delimiter=','),
                                 'Vc': genfromtxt(f'{data_dir}/Winckelmanns1989/figJ36_dXcdt_nc6.csv', delimiter=','),
                                 },
         
@@ -60,7 +75,7 @@ def get_validationdata(data_dir,nu=0.0):
                                 'Normalised Enstrophy (div-free)':genfromtxt(f'{data_dir}/Valentin2022/fig8a_ef.csv', delimiter=','),
                                 'Normalised Kinetic Energy':genfromtxt(f'{data_dir}/Valentin2022/fig8a_ke_kef.csv', delimiter=','),
                                 'Normalised Kinetic Energy (div-free)':genfromtxt(f'{data_dir}/Valentin2022/fig8a_ke_kef.csv', delimiter=','),
-                                'Vc': genfromtxt(f'{data_dir}/Valentin2022/fig5a_vi.csv', delimiter=','),
+                                'Vc': genfromtxt(f'{data_dir}/Valentin2022/fig5a_vi_nondim.csv', delimiter=','),
                                 'KE_rate': genfromtxt(f'{data_dir}/Valentin2022/fig5a_dkedt.csv', delimiter=','),
                                 'nue':np.array([[0,0],[5,0]]),
                                 },
@@ -77,7 +92,7 @@ def get_validationdata(data_dir,nu=0.0):
                                 'Normalised Enstrophy (div-free)':genfromtxt(f'{data_dir}/Winckelmanns1989/figJ35_ef.csv', delimiter=','),
                                 'Normalised Kinetic Energy':np.array([[0,1.0],[5,1.0]]),
                                 'Normalised Kinetic Energy (div-free)':np.array([[0,1.0],[5,1.0]]),
-                                'Vc': genfromtxt(f'{data_dir}/Winckelmanns1989/figJ35_dXcdx_nc5.csv', delimiter=','),
+                                'Vc': genfromtxt(f'{data_dir}/Winckelmanns1989/figJ35_dXcdt_nc5.csv', delimiter=','),
                                 },
                 "vring6by117":{},
         

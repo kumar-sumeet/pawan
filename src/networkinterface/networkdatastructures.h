@@ -23,6 +23,11 @@ typedef struct pawanrecvdata {    //better implementation possible perhaps
     double lfnlen[PAWAN_MAXLFNLINES]; //span of lfnline
     Pawancinttype pawancinttype;
     Pawanregfunctype pawanregfunctype;
+    int trailvor;
+    int shedvor;
+    int suprootvor; // 0 -> do not suppress root vortices, 1-> suppress root vortices
+    int transientsteps;
+    int infl2D;  //0-> full 3D wake used to calculate inflow; 1-> only panel shed wake used to calculate inflow
     int spanres;
     double acrossa;
     double deltat;

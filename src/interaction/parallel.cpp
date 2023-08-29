@@ -159,7 +159,7 @@ void pawan::__parallel::calculateLinearImpulse(__wake *W, gsl_vector *I){
 
 void pawan::__parallel::calculateTotalVorticity(__wake *W, gsl_vector *O){
 	gsl_vector_set_zero(O);
-	double Ox, Oy, Oz = 0.0;
+	double Ox = 0.0, Oy = 0.0, Oz = 0.0;
 	#pragma omp parallel for reduction(+:Ox,Oy,Oz)
 	for(size_t i = 0; i < W->_numParticles; ++i){
 		Ox += gsl_matrix_get(W->_vorticity,i,0);
@@ -173,7 +173,7 @@ void pawan::__parallel::calculateTotalVorticity(__wake *W, gsl_vector *O){
 
 void pawan::__parallel::calculateAngularImpulse(__wake *W, gsl_vector *A){
 	gsl_vector_set_zero(A);
-	double Lx, Ly, Lz = 0.0;
+	double Lx = 0.0, Ly = 0.0, Lz = 0.0;
 	#pragma omp parallel for reduction(+:Lx,Ly,Lz)
 	for(size_t i = 0; i < W->_numParticles; ++i){
 		gsl_vector *rxa = gsl_vector_calloc(3);
