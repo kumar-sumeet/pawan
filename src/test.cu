@@ -312,7 +312,7 @@ void wholeIntegration(){
     W->print();
 
     //pawan::__wake *W1 = new pawan::__ring(1.0,5.0,0.1,1000);
-    pawan::__wake *wakeGPU = new pawan::__wake(W);
+   pawan::__wake *wakeGPU = new pawan::__wake(W);
     //pawan::__wake *W2 = new pawan::__ring(1.0,5.0,0.1,1000);
     pawan::__wake *wakeCPU = new pawan::__wake(W);
 

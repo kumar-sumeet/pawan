@@ -33,7 +33,7 @@ void resizeToFit(double4 *cpu, double4 *gpu1, double4 *gpu2, size_t &size, int p
 template<int threadBlockSize, int unrollFactor>
 pawan::gpu_euler<threadBlockSize,unrollFactor>::gpu_euler(const double &t, const size_t &n):__integration(t,n){}
 
-template<int threadBlockSize = 128, int unrollFactor = 128>
+template<int threadBlockSize = 128, int unrollFactor = 1>
 __global__ void eulerKernel(const double4 *source, double4 *target, const size_t N, const double nu, double dt) {
 
     double4 ownPosition, ownVorticity;
@@ -220,9 +220,10 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
 
         //Start copy the result of the previous calculation
         checkGPUError(cudaMemcpyAsync(cpuBuffer,gpuSource,mem_size,cudaMemcpyDeviceToHost, memoryStream));
+        checkGPUError(cudaStreamSynchronize(memoryStream));
 
         //wait for memory copy to finish, then do all the things that need to be done on the cpu
-        checkGPUError(cudaStreamSynchronize(memoryStream));
+
         S->setParticles(reinterpret_cast<double *>(cpuBuffer));
         t = i*_dt; //The data is the one of the last step
         fwrite(&t,sizeof(double),1,f);

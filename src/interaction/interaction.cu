@@ -462,7 +462,6 @@ void pawan::__interaction::getVi(const gsl_vector *r, gsl_vector *vi, const size
             gsl_vector_sub(displacement, &ipos.vector);
             double rho = gsl_blas_dnrm2(displacement);
             double q = 0.0, F = 0.0, Z = 0.0;
-            //TODO: needed this to compile, but do not know what it should do!!
             double n_;
 
             KERNEL(rho, sigma, q, F, Z, n_);

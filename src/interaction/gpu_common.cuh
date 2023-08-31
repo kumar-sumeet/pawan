@@ -42,7 +42,7 @@ void copyRatesFromGPU(double3 *ratesGPU, size_t size, const std::vector<pawan::_
  * @param velocity reference to store resulting rate
  * @param retVorticity reference to store resulting rate
  */
- template<int threadBlockSize = 128, int unrollFactor = 128>
+ template<int threadBlockSize = 128, int unrollFactor = 1>
 __device__ inline void interact_with_all(const double4 *particles, const size_t N, const double nu, const double4 &position,
                                          const double4 &vorticity, const size_t index, double3 &velocity,
                                          double3 &retVorticity) {
