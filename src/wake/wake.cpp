@@ -186,9 +186,9 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
     int trailvor = pawanrecvdata->trailvor;
     int shedvor = pawanrecvdata->shedvor;
     int suprootvor = pawanrecvdata->suprootvor;
-    int infl2D = pawanrecvdata->infl2D;
+    //int infl2D = pawanrecvdata->infl2D;
     //int spanres = pawanrecvdata->spanres;
-    int spanres = 20;  //number of particles over the span of a lfnline
+    int spanres = 40;  //number of particles over the span of a lfnline
     double acrossa = pawanrecvdata->acrossa;
     double deltat = pawanrecvdata->deltat;
     double *spandisc = pawanrecvdata->span_disc;
@@ -463,7 +463,7 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                                  - 0.5*(   gsl_spline_eval(circprev_spline, ista *     (1. / spanres),     accel_ptr)
                                          + gsl_spline_eval(circprev_spline, (ista+1) * (1. / spanres),     accel_ptr));
                     //placing shed vortex particle between two trailing vortex particles
-                    for(int ksta = int(dontaddTEpart); ksta<=(int)(del_teposmag/hres); ++ksta ) {
+                    for (int ksta = int(dontaddTEpart); ksta <= (int) (del_teposmag / hres); ++ksta) {
                         if (del_teposmag != 0.0) {//in case lfnline is moving in inertial frame
                             shedvorpos[0] = lastpart_shed[0] + ksta * (tepos_shed[0] - lastpart_shed[0])/(del_teposmag/hres);
                             shedvorpos[1] = lastpart_shed[1] + ksta * (tepos_shed[1] - lastpart_shed[1])/(del_teposmag/hres);
@@ -471,22 +471,22 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
 
                         } else {//only stepnum=0 in case lfnline is stationary in inertial frame
                             //particles added at TE; thereafter del_teposmag !=0.0, particles added between last section particle and TE
-/*                            shedvorpos[0] = 0.5*(  gsl_spline_eval(TEposx_spline, ista * (1. / spanres), accel_ptr)
-                                                   + gsl_spline_eval(TEposx_spline, (ista+1) * (1. / spanres), accel_ptr));
-                            shedvorpos[1] = 0.5*(  gsl_spline_eval(TEposy_spline, ista * (1. / spanres), accel_ptr)
-                                                   + gsl_spline_eval(TEposy_spline, (ista+1) * (1. / spanres), accel_ptr));
-                            shedvorpos[2] = 0.5*(  gsl_spline_eval(TEposz_spline, ista * (1. / spanres), accel_ptr)
-                                                   + gsl_spline_eval(TEposz_spline, (ista+1) * (1. / spanres), accel_ptr));
-*/
+                            /*                            shedvorpos[0] = 0.5*(  gsl_spline_eval(TEposx_spline, ista * (1. / spanres), accel_ptr)
+                                                                               + gsl_spline_eval(TEposx_spline, (ista+1) * (1. / spanres), accel_ptr));
+                                                        shedvorpos[1] = 0.5*(  gsl_spline_eval(TEposy_spline, ista * (1. / spanres), accel_ptr)
+                                                                               + gsl_spline_eval(TEposy_spline, (ista+1) * (1. / spanres), accel_ptr));
+                                                        shedvorpos[2] = 0.5*(  gsl_spline_eval(TEposz_spline, ista * (1. / spanres), accel_ptr)
+                                                                               + gsl_spline_eval(TEposz_spline, (ista+1) * (1. / spanres), accel_ptr));
+                            */
                             shedvorpos[0] = lastpart_shed[0];
                             shedvorpos[1] = lastpart_shed[1];
                             shedvorpos[2] = lastpart_shed[2];
 
                         }
-                        double alphai_shed = shedvormag*hres;
+                        double alphai_shed = shedvormag * hres;
                         for (int k = 0; k < 3; ++k) {
                             gsl_matrix_set(_position, _npidx, k, shedvorpos[k]);
-                            gsl_matrix_set(_vorticity, _npidx, k, shedvordir[k] * alphai_shed/shedvordirmag);
+                            gsl_matrix_set(_vorticity, _npidx, k, shedvordir[k] * alphai_shed / shedvordirmag);
                             gsl_matrix_set(_vorticityfield, _npidx, k, 0.0); //later
                         }
                         gsl_vector_set(_radius, _npidx, sigma);
@@ -496,12 +496,12 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                         gsl_vector_set(_lastsectpartnpidx, sectidx, _npidx);
 
                         _npidx++;
-                        if(_npidx==MAXNUMPARTICLES){
+                        if (_npidx == MAXNUMPARTICLES) {
                             _npidx = 0;
                             _numParticles = MAXNUMPARTICLES;
                             _maxmem = true;
                         }
-                        if(!_maxmem)
+                        if (!_maxmem)
                             _numParticles = _npidx;
 
                     }
@@ -559,6 +559,13 @@ pawan::__wake::__wake(__wake *W){
 
     initialise_memory();   //large enough memory allocation
     addParticles(W);
+}
+
+pawan::__wake::__wake(const int &n,FILE *f){
+
+    create_particles(n);
+    read(f);               //read wake info from file
+    _size = 2*_numParticles*3;
 }
 
 void pawan::__wake::updateVinfEffect(const double *Vinf, double &dt){
@@ -851,6 +858,17 @@ void pawan::__wake::read(__io *IO){
 	gsl_vector_fread(f,_birthstrength);
 	//gsl_matrix_fread(f,_vorticityfield);
 	fclose(f);
+}
+
+void pawan::__wake::read(FILE *f){
+    fread(&_numParticles,sizeof(size_t),1,f);
+    gsl_matrix_fread(f,_position);
+    gsl_matrix_fread(f,_vorticity);
+    gsl_vector_fread(f,_radius);
+    gsl_vector_fread(f,_active);
+    gsl_vector_fread(f,_volume);
+    gsl_vector_fread(f,_birthstrength);
+    fclose(f);
 }
 
 void pawan::__wake::setStates(const gsl_vector *state){

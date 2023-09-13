@@ -51,7 +51,8 @@ int main(int argc, char* argv[]){
     pawan::__wake *W = new pawan::__wake(pawanrecvdata);
     //pawan::__interaction *S = new pawan::__interaction(W);
     pawan::__interaction *S = new pawan::__parallel(W);
-    pawan::__integration *IN = new pawan::__integration();
+    //pawan::__integration *IN = new pawan::__integration();
+    pawan::__integration *IN = new pawan::gpu_euler<>();
     IN->integrate(S,IOdym,&networkCommunicatorTest,false);
     delete IN;
     delete S;
@@ -149,14 +150,14 @@ int main(int argc, char* argv[]){
 
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
-    //pawan::__io *IOvring = new pawan::__io("vring4by80_euler_gpu");
+    pawan::__io *IOvring = new pawan::__io("vring4by80");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
     //pawan::__io *IOvring = new pawan::__io("vring_5by100");
-    pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
-    pawan::__io *IOvring = new pawan::__io("vring_6by117_gpu");
+    //pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
+    //pawan::__io *IOvring = new pawan::__io("vring_6by117_gpu");
 
     //pawan::__interaction *S = new pawan::__interaction(W);
-    pawan::__interaction *S = new pawan::__parallel(W);
+/*    pawan::__interaction *S = new pawan::__parallel(W);
 
     pawan::__resolve *R = new pawan::__resolve();
     S->diagnose();//simply calculate diagnostics
@@ -165,18 +166,31 @@ int main(int argc, char* argv[]){
     S->diagnose();
     S->solve();
     W->print();
-
-    pawan::__wake *Wvring = new pawan::__wake(W);
-    //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    pawan::__integration *INvring = new pawan::gpu_euler<>(5,100);
-    //pawan::__integration *INvring = new pawan::__rk4(5,100);
-
-    INvring->integrate(Svring,IOvring,true);
-
     delete R;
     delete S;
     delete W;
+*/
+/*  write vring to *.vringwake (this action is only required once)
+    FILE *fvring = IOvring->create_binary_file(".vringwake");
+    W->write(fvring);
+    fclose(fvring);
+    pawan::__wake *Wvring = new pawan::__wake(W);
+*/
+
+    FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
+    int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
+    FILE *fvring = IOvring->open_binary_file(".vringwake");
+    pawan::__wake *Wvringtemp = new pawan::__wake(numparticles, fvring);//temp needed in order to use gsl_*_fread()
+    pawan::__wake *Wvring = new pawan::__wake(Wvringtemp);
+
+    //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
+    pawan::__interaction *Svring = new pawan::__parallel(Wvring);
+    //pawan::__integration *INvring = new pawan::gpu_euler<>(1,20);
+    pawan::__integration *INvring = new pawan::__integration(0.25,5);
+    //pawan::__integration *INvring = new pawan::__rk4(5,100);
+
+    INvring->integrate(Svring,IOvring,false);
+
     delete Wvring;
     delete Svring;
     delete INvring;

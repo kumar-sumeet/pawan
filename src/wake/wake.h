@@ -18,8 +18,7 @@
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#define SHEDVOR 0 //model only trail vortices if 0
-#define MAXNUMPARTICLES 100000 //max particles per wake
+#define MAXNUMPARTICLES 20000 //max particles per wake
 
 namespace pawan{
 
@@ -71,6 +70,7 @@ class __wake{
         //! For validation cases
         __wake(__wake *W);
         virtual void addParticles(__wake *W);
+        __wake(const int &n,FILE *f);
 
         //! Destructor
 		/*
@@ -119,7 +119,8 @@ class __wake{
 		 * \param op	Input/Output object for file
 		 */
 		virtual void read(__io *IO);
-		
+        virtual void read(FILE *f);
+
 		//! Set states
 		/*
 		 * Sets positions and vorticities of particles
