@@ -82,8 +82,9 @@ class __system{
          */
         virtual void getParticles(double *particles) = 0;
         virtual int amountParticles() = 0;
+        virtual int totalmaxParticles() = 0;
         virtual double getNu() = 0;
-
+        virtual void setDiagnostics(double *totalDiag) = 0;
 
 
 

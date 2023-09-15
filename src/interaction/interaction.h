@@ -217,6 +217,7 @@ class __interaction : public __system{
 		 * \param f	Binary file
 		 */
 		virtual void write(FILE *f);
+        virtual void setDiagnostics(double *totalDiag);
         //write diagnostics to file
         virtual void writediagnosis(FILE *fdiag);
         virtual void writenu(FILE *fdiag);
@@ -246,6 +247,7 @@ class __interaction : public __system{
         void setParticles(double *particles) override;
         void getParticles(double *particles) override;
         int amountParticles() override;
+        int totalmaxParticles() override;
         double getNu() override;
 
         //! add relaxation to wake system

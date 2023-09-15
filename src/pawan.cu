@@ -150,11 +150,11 @@ int main(int argc, char* argv[]){
 
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
-    pawan::__io *IOvring = new pawan::__io("vring4by80");
+    //pawan::__io *IOvring = new pawan::__io("vring4by80");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
-    //pawan::__io *IOvring = new pawan::__io("vring_5by100");
+    //pawan::__io *IOvring = new pawan::__io("vring5by100");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
-    //pawan::__io *IOvring = new pawan::__io("vring_6by117_gpu");
+    pawan::__io *IOvring = new pawan::__io("vring6by117");
 
     //pawan::__interaction *S = new pawan::__interaction(W);
 /*    pawan::__interaction *S = new pawan::__parallel(W);
@@ -166,16 +166,15 @@ int main(int argc, char* argv[]){
     S->diagnose();
     S->solve();
     W->print();
-    delete R;
-    delete S;
-    delete W;
-*/
-/*  write vring to *.vringwake (this action is only required once)
+//  write vring to *.vringwake (this action is only required once)
     FILE *fvring = IOvring->create_binary_file(".vringwake");
     W->write(fvring);
     fclose(fvring);
     pawan::__wake *Wvring = new pawan::__wake(W);
-*/
+    delete R;
+    delete S;
+    delete W;
+ */
 
     FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
     int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
@@ -185,11 +184,11 @@ int main(int argc, char* argv[]){
 
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
     pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    //pawan::__integration *INvring = new pawan::gpu_euler<>(1,20);
-    pawan::__integration *INvring = new pawan::__integration(0.25,5);
+    pawan::__integration *INvring = new pawan::gpu_euler<>(5,100);
+    //pawan::__integration *INvring = new pawan::__integration(0.25,5);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
-    INvring->integrate(Svring,IOvring,false);
+    INvring->integrate(Svring,IOvring,true);
 
     delete Wvring;
     delete Svring;

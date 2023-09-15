@@ -27,7 +27,7 @@ inline double ZETASIG(	const double &rho, const double &sigma){
  * \param	rho		double distance
  * \param	sigma		double radius
  */
-inline double QSIG(	const double &rho, 
+inline double QSIG(	const double &rho,
 			const double &sigma){
 	double rho_bar = rho/sigma;
 	double sig3 = sigma*sigma*sigma;
@@ -44,7 +44,7 @@ inline double QSIG(	const double &rho,
  * \param	F		double F
  * \param	Z		double Z
  */
-inline void KERNEL(	const double &rho, 
+inline void KERNEL(	const double &rho,
 			const double &sigma, 
 			double &q, 
 			double &F, 
@@ -66,7 +66,7 @@ inline void KERNEL(	const double &rho,
  * \param	F1		double F1 factor for a1.a2
  * \param	F2		double F2 factor for (a1.x12)(a2.x12)
  */
-inline void ENST(	const double &rho, 
+inline void ENST(	const double &rho,
 			const double &sigma,
 			double &F1,
 			double &F2){

@@ -1,8 +1,15 @@
 #ifndef PAWAN_INTERACTION_UTILS_GPU_CUH
 #define PAWAN_INTERACTION_UTILS_GPU_CUH
 
-//TODO: this uses the highorder and not gaussian method ?!
-//-> add switching mechanism??
+#define HIGHORDER_GPU 1
+#define GAUSSIAN_GPU 0
+
+#if HIGHORDER_GPU
+#include "src/interaction/highorder.cuh"
+#elif GAUSSIAN_GPU
+#include "src/interaction/gaussian.cuh"
+#endif
+
 __device__ inline void INTERACT_GPU(double nu,
                                     const double4 &source_pos,
                                     const double4 &target_pos,
@@ -10,11 +17,6 @@ __device__ inline void INTERACT_GPU(double nu,
                                     const double4 &target_vorticity,
                                     double3 &velocity,
                                     double3 &retvorticity);
-
-__device__ inline void KERNEL_GPU(double rho, double sigma, double &q, double &f, double &z);
-__device__ inline double ZETASIG_GPU(const double &rho, const double &sigma);
-__device__ inline double QSIG_GPU(const double &rho, const double &sigma);
-
 
 __device__ inline void VELOCITY_GPU(double kernel, const double4 &vorticity, const double3 &displacement, double3 &velocity);
 __device__ inline void VORSTRETCH_GPU(const double &q, const double &F, const double4 &source_vorticity,
@@ -26,9 +28,11 @@ __device__ inline void DIFFUSION_GPU(double nu, double sigma, double Z, const do
 template<typename A,typename B>
 __device__  inline void add(A &a, B b);
 __device__  inline void subtract(double3 &a, double3 b);
-__device__ inline double dot_product(const double3 &a, const double3 &b);
+template<typename A,typename B>
+__device__ inline double dot_product(const A &a, const B &b);
 __device__ inline double dnrm2(double3 v);
-template<typename A,typename B> __device__ inline void cross(const A &a, const B &b, double3 &target);
+template<typename A,typename B>
+__device__ inline void cross(const A &a, const B &b, double3 &target);
 __device__ inline void scale(double a, double3 &v);
 
 
@@ -54,11 +58,11 @@ __device__ inline void INTERACT_GPU(const double nu,
                           target_pos.z-source_pos.z};
 
     double rho = dnrm2(displacement);
-    double q = 0.0, F = 0.0, Z = 0.0;
+    double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
     double sigma = sqrt(0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w));
 
 
-    KERNEL_GPU(rho,sigma,q,F,Z);
+    KERNEL_GPU(rho,sigma,q,F,Z,n);
     // Velocity computation of source
     double3 vel;
     VELOCITY_GPU(-q,target_vorticity,displacement,vel);
@@ -68,27 +72,6 @@ __device__ inline void INTERACT_GPU(const double nu,
     VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
     DIFFUSION_GPU(nu,sigma,Z,source_vorticity,target_vorticity,retvorticity);
 
-}
-
-__device__ inline void KERNEL_GPU(const double rho, const double sigma, double &q, double &F, double &Z) {
-    Z = ZETASIG_GPU(rho,sigma);
-    q = QSIG_GPU(rho, sigma);
-    F = (Z - 3.0*q)/(rho * rho);
-
-}
-
-
-__device__ double QSIG_GPU(const double &rho, const double &sigma) {
-    double rho_bar = rho/sigma;
-    double rho_bar2 = rho_bar * rho_bar;
-    double rho3 = rho*rho*rho;
-    return 0.25*M_1_PI*rho_bar2*rho_bar*(rho_bar2 + 2.5)/pow(rho_bar2 + 1.0,2.5)/rho3;
-}
-
-
-__device__ inline double ZETASIG_GPU(	const double &rho, const double &sigma) {
-    double rho_bar = rho/sigma;
-    return 1.875*M_1_PI/pow(rho_bar*rho_bar + 1.0,3.5)/pow(sigma,3);
 }
 
 __device__ inline void VELOCITY_GPU(const double kernel, const double4 &vorticity,
@@ -115,7 +98,7 @@ __device__ inline void VORSTRETCH_GPU(const double &q,
     // da/dt = F*[disp.(a_trg x a_src)]disp
     double roaxa = dot_product(displacement,trgXsrc);
 
-    scale(F*roaxa,displacement); //We don't need displacement after this function, so we can destroy it
+    scale(-F*roaxa,displacement); //We don't need displacement after this function, so we can destroy it
 
     // Difference to CPU version:
     // - directly change the result vector
@@ -154,6 +137,150 @@ __device__ inline void DIFFUSION_GPU(const double nu,
 
 }
 
+__device__ inline double3 getvorticity(const double4 *particles, const unsigned int i){
+    double3 O;
+    O.x = particles[2 * i + 1].x;
+    O.y = particles[2 * i + 1].y;
+    O.z = particles[2 * i + 1].z;
+
+    return O;
+}
+__device__ inline double3 getlinearimpulse(const double4 *particles, const unsigned int i){
+    double3 I;
+    cross(particles[2 * i],particles[2 * i + 1],I);
+    I.x = (1.0/2.0)*I.x;
+    I.y = (1.0/2.0)*I.y;
+    I.z = (1.0/2.0)*I.z;
+
+    return I;
+}
+__device__ inline double3 getangularimpulse(const double4 *particles, const unsigned int i){
+    double3 A1,A;
+    cross(particles[2 * i],particles[2 * i + 1],A1);
+    cross(particles[2 * i],A1,A);
+    A.x = (1.0/3.0)*A.x;
+    A.y = (1.0/3.0)*A.y;
+    A.z = (1.0/3.0)*A.z;
+
+    return A;
+}
+__device__ inline double3 getZc(const double4 *particles, const unsigned int i){
+    double3 V = {particles[2 * i + 1].x, particles[2 * i + 1].y, particles[2 * i + 1].z};
+    double oy = dnrm2(V);
+
+    double3 result = {oy * particles[2 * i].z * (particles[2 * i].x * particles[2 * i].x + particles[2 * i].y * particles[2 * i].y),
+                      oy * (particles[2 * i].x * particles[2 * i].x + particles[2 * i].y * particles[2 * i].y),
+                      0.0};   //{numerator, denominator, Zc value could go here later}
+
+    return result;
+}
+__device__ inline void ENSTROPHY(const double4 &source_pos,
+                                   const double4 &target_pos,
+                                   const double4 &source_vorticity,
+                                   const double4 &target_vorticity,
+                                   double &partDiagContrib){
+
+    double3 displacement {target_pos.x-source_pos.x,
+                          target_pos.y-source_pos.y,
+                          target_pos.z-source_pos.z};
+    double rho = dnrm2(displacement);
+    double sigma = sqrt(0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w));
+    double F1 = 0.0;
+    double F2 = 0.0;
+    ENST_GPU(rho,sigma,F1,F2);
+
+    // (a1.a2)
+    double a1a2 = dot_product(source_vorticity,target_vorticity);
+    // (a1.x12)
+    double a1x12 = dot_product(source_vorticity,displacement);
+    // (a2.x12)
+    double a2x12 = dot_product(target_vorticity,displacement);
+
+    // F1.(a1.a2) + F2(a1.x12).(a2.x12)
+    partDiagContrib += (F1 * a1a2 + F2 * a1x12 * a2x12);
+}
+
+__device__ inline void ENSTROPHYF(const double4 &source_pos,
+                                   const double4 &target_pos,
+                                   const double4 &source_vorticity,
+                                   const double4 &target_vorticity,
+                                    double &partDiagContrib){
+
+    double3 displacement {target_pos.x-source_pos.x,
+                          target_pos.y-source_pos.y,
+                          target_pos.z-source_pos.z};
+    double rho = dnrm2(displacement);
+    double sigma = sqrt(0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w));
+    double F1 = 0.0;
+    ENSTF_GPU(rho,sigma,F1);
+
+    double a1a2 = dot_product(source_vorticity,target_vorticity);
+
+    partDiagContrib += (F1 * a1a2);
+}
+
+__device__ inline void HELICITY(const double4 &source_pos,
+                                    const double4 &target_pos,
+                                    const double4 &source_vorticity,
+                                    const double4 &target_vorticity,
+                                  double &partDiagContrib){
+
+    double3 displacement {target_pos.x-source_pos.x,
+                          target_pos.y-source_pos.y,
+                          target_pos.z-source_pos.z};
+    double rho = dnrm2(displacement);
+    double sigma = sqrt(0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w));
+    double q = QSIG_GPU(rho,sigma);
+
+    // a2 x a1
+    double3 trgXsrc;
+    cross(target_vorticity,source_vorticity,trgXsrc);
+    // x12.(a2 x a1)
+    double roaxa = dot_product(displacement,trgXsrc);
+
+    partDiagContrib += (q * roaxa);
+}
+
+__device__ inline void KINETICENERGY(const double4 &source_pos,
+                                  const double4 &target_pos,
+                                  const double4 &source_vorticity,
+                                  const double4 &target_vorticity,
+                                       double &partDiagContrib){
+
+    double3 displacement {target_pos.x-source_pos.x,
+                          target_pos.y-source_pos.y,
+                          target_pos.z-source_pos.z};
+    double rho2 = dot_product(displacement,displacement);
+    double sigma2 = 0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w);
+
+    // a1.a2
+    double a1a2 = dot_product(target_vorticity,source_vorticity);
+    // x12.a1
+    double x12a1 = dot_product(displacement,source_vorticity);
+    // x12.a2
+    double x12a2 = dot_product(displacement,target_vorticity);
+
+    partDiagContrib += (((rho2 + 2.0 * sigma2) * a1a2 + (x12a1 * x12a2)) / pow(rho2 + sigma2, 1.5) / 16.0 / M_PI);
+}
+
+__device__ inline void KINETICENERGYF(const double4 &source_pos,
+                                       const double4 &target_pos,
+                                       const double4 &source_vorticity,
+                                       const double4 &target_vorticity,
+                                        double &partDiagContrib){
+
+    double3 displacement {target_pos.x-source_pos.x,
+                          target_pos.y-source_pos.y,
+                          target_pos.z-source_pos.z};
+    double rho2 = dot_product(displacement,displacement);
+    double sigma2 = 0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w);
+
+    // a1.a2
+    double a1a2 = dot_product(target_vorticity,source_vorticity);
+
+    // (1/8 pi).(rho^2 + 1.5*sigma^2)*(a1.a2) /(rho^2 + sigma^2)^3/2
+    partDiagContrib += ((rho2 + 1.5 * sigma2) * a1a2 / pow(rho2 + sigma2, 1.5) / 8.0 / M_PI);
+}
 
 //Math functions
 
@@ -181,7 +308,8 @@ __device__  inline void subtract(double3 &a, const double3 b) {
 /*
  * dot product
  */
-__device__ inline double dot_product(const double3 &a, const double3 &b) {
+template<typename A,typename B>
+__device__ inline double dot_product(const A &a, const B &b) {
     return a.x * b.x
            + a.y * b.y
            + a.z * b.z;

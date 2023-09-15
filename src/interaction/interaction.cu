@@ -11,8 +11,8 @@
 pawan::__interaction::__interaction(){
     DOUT("--------------------------------in pawan::__interaction::__interaction()");
 	//_nu = 2.0e-2;
-	//_nu = 2.5e-3;   //vring
-    _nu = 1.56e-5;    //coupling
+	_nu = 2.5e-3;   //vring
+    //_nu = 1.56e-5;    //coupling
     //_nu = 0.0;
 	_nWake = 0;
 	_totalVorticity = gsl_vector_calloc(3);
@@ -322,6 +322,21 @@ void pawan::__interaction::writenu(FILE *fdiag){
     fwrite(&_nu,sizeof(double),1,fdiag);
 }
 
+void pawan::__interaction::setDiagnostics(double *totalDiag){
+    for(size_t i = 0; i<3; ++i) {
+        gsl_vector_set(_totalVorticity, i, totalDiag[i]);
+        gsl_vector_set(_linearImpulse, i, totalDiag[3+i]);
+        gsl_vector_set(_angularImpulse, i, totalDiag[6+i]);
+    }
+    _enstrophy = totalDiag[9];
+    _kineticEnergy = totalDiag[10];
+    _helicity = totalDiag[11];
+    _enstrophyF = totalDiag[12];
+    _kineticEnergyF = totalDiag[13];
+    if(totalDiag[15]!=0)
+        _Zc = totalDiag[14]/totalDiag[15];
+}
+
 void pawan::__interaction::writediagnosis(FILE *fdiag){
     gsl_vector_fwrite(fdiag,_totalVorticity);
     gsl_vector_fwrite(fdiag,_linearImpulse);
@@ -461,10 +476,8 @@ void pawan::__interaction::getVi(const gsl_vector *r, gsl_vector *vi, const size
             gsl_vector_memcpy(displacement, r);
             gsl_vector_sub(displacement, &ipos.vector);
             double rho = gsl_blas_dnrm2(displacement);
-            double q = 0.0, F = 0.0, Z = 0.0;
-            double n_;
-
-            KERNEL(rho, sigma, q, F, Z, n_);
+            double q = 0.0;
+            q = QSIG(rho,sigma);
             //if(i%17==0 && n==8)
                 //printf("q = %10.5e \t",q);
             // Velocity computation
@@ -766,6 +779,14 @@ int pawan::__interaction::amountParticles() {
         total += w->_numParticles;
     }
     return total;
+}
+
+int pawan::__interaction::totalmaxParticles() {
+    int totalmaxparticles = 0;
+    for(auto const w : _W){
+        totalmaxparticles += w->_maxnumParticles;
+    }
+    return totalmaxparticles;
 }
 
 double pawan::__interaction::getNu() {

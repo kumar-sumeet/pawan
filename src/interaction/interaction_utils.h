@@ -92,7 +92,7 @@ inline void VORSTRETCH(	const double &q,
 	double roaxa = 0.0;
 	gsl_blas_ddot(displacement,trgXsrc,&roaxa);
 	gsl_vector_memcpy(stretch,displacement);
-	gsl_blas_dscal(F*roaxa,stretch);
+	gsl_blas_dscal(-F*roaxa,stretch);
 
 	//gsl_vector_set_zero(retvorcity);
 	gsl_vector_add(retvorcity,crossed);	
@@ -226,17 +226,17 @@ inline double HELICITY(	const double &s1,
 	double rho = gsl_blas_dnrm2(x12);
 	double sigma = sqrt(0.5*(gsl_pow_2(s1) + gsl_pow_2(s2)));
 	double q = QSIG(rho,sigma);
-	// a1 x a2
-	gsl_vector *a1Xa2 = gsl_vector_calloc(3);
-	gsl_cross(a1,a2,a1Xa2);
+	// a2 x a1
+	gsl_vector *a2Xa1 = gsl_vector_calloc(3);
+	gsl_cross(a2,a1,a2Xa1);
 	
-	// x12.(a1 x a2)
+	// x12.(a2 x a1)
 	double roaxa = 0.0;;
-	gsl_blas_ddot(x12,a1Xa2,&roaxa);
+	gsl_blas_ddot(x12,a2Xa1,&roaxa);
 
 	double H = q*roaxa;
     gsl_vector_free(x12);
-    gsl_vector_free(a1Xa2);
+    gsl_vector_free(a2Xa1);
 
     return H;
 };
