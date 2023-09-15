@@ -88,6 +88,19 @@ __global__ void totalQuadDiag(const double4 *source, const size_t N, double *dia
     atomicAdd(diagnosticVal, partDiagContrib);
 }
 
+template<int threadBlockSize = 128, int unrollFactor = 1>
+void runDiag(const size_t threadBlocks, const double4 *gpuSource, const size_t numberOfParticles, double *totalDiag, cudaStream_t stream) {
+    totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),stream >>>(gpuSource,numberOfParticles,totalDiag, 0);
+    totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),stream >>>(gpuSource,numberOfParticles,totalDiag+3, 1);
+    totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),stream >>>(gpuSource,numberOfParticles,totalDiag+6, 2);
+    totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, stream >>>(gpuSource, numberOfParticles, totalDiag+9,     0);
+    totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, stream >>>(gpuSource, numberOfParticles, totalDiag+10, 1);
+    totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, stream >>>(gpuSource, numberOfParticles, totalDiag+11,      2);
+    totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, stream >>>(gpuSource, numberOfParticles, totalDiag+12,    3);
+    totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, stream >>>(gpuSource, numberOfParticles, totalDiag+13,4);
+    totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),stream >>>(gpuSource,numberOfParticles,totalDiag+14, 3);
+}
+
 template<int threadBlockSize, int unrollFactor>
 void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO,
                                                                NetworkInterfaceTCP<OPawanRecvData, OPawanSendData> *networkCommunicatorTest,
@@ -193,13 +206,7 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
     double t = 0.0;
     fwrite(&t,sizeof(double),1,f);
     S->write(f);  //write particles info as is
-/*    if(diagnose) {
-        S->writenu(fdiag);
-        fwrite(&t,sizeof(double),1,fdiag);
-        S->diagnose();
-        S->writediagnosis(fdiag);
-    }
-*/
+
     //Create two cuda streams so that integration and memory copies can happen at the same time
     cudaStream_t memoryStream, integrateStream;
     cudaStreamCreate(&memoryStream);
@@ -220,17 +227,6 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
 
     double *totalDiag;
     checkGPUError(cudaMallocHost(&totalDiag, 17*sizeof(double)));
-/*    double *totalVorticity, *linearImpulse, *angularImpulse;
-    double *enstrophy, *kineticenergy, *helicity, *enstrophyF, *kineticenergyF;
-    checkGPUError(cudaMallocHost(&totalVorticity, 3*sizeof(double)));
-    checkGPUError(cudaMallocHost(&linearImpulse,  3*sizeof(double)));
-    checkGPUError(cudaMallocHost(&angularImpulse, 3*sizeof(double)));
-    checkGPUError(cudaMallocHost(&enstrophy,      sizeof(double)));
-    checkGPUError(cudaMallocHost(&kineticenergy,  sizeof(double)));
-    checkGPUError(cudaMallocHost(&helicity,       sizeof(double)));
-    checkGPUError(cudaMallocHost(&enstrophyF,     sizeof(double)));
-    checkGPUError(cudaMallocHost(&kineticenergyF, sizeof(double)));
-*/
     //Transfer particles to GPU
     S->getParticles(reinterpret_cast<double *>(cpuBuffer));
     checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
@@ -246,47 +242,10 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
         S->writenu(fdiag);
         fwrite(&t,sizeof(double),1,fdiag);
         checkGPUError(cudaMemset(totalDiag,0,17*sizeof(double)));
-/*        checkGPUError(cudaMemset(totalVorticity,0,3*sizeof(double)));
-        checkGPUError(cudaMemset(linearImpulse,0,3*sizeof(double)));
-        checkGPUError(cudaMemset(angularImpulse,0,3*sizeof(double)));
-        checkGPUError(cudaMemset(enstrophy,0,sizeof(double)));
-        checkGPUError(cudaMemset(kineticenergy,0,sizeof(double)));
-        checkGPUError(cudaMemset(helicity,0,sizeof(double)));
-        checkGPUError(cudaMemset(enstrophyF,0,sizeof(double)));
-        checkGPUError(cudaMemset(kineticenergyF,0,sizeof(double)));
-        printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalVorticity[0],totalVorticity[1],totalVorticity[2]);
-        printf("totalLI = %10.5e, %10.5e, %10.5e \n",linearImpulse[0],linearImpulse[1],linearImpulse[2]);
-        printf("totalAI = %10.5e, %10.5e, %10.5e \n",angularImpulse[0],angularImpulse[1],angularImpulse[2]);
-        printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",enstrophy[0], kineticenergy[0], helicity[0], enstrophyF[0], kineticenergyF[0]);
-*/
-        printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalDiag[0],totalDiag[1],totalDiag[2]);
-        printf("totalLI = %10.5e, %10.5e, %10.5e \n",totalDiag[3],totalDiag[4],totalDiag[5]);
-        printf("totalAI = %10.5e, %10.5e, %10.5e \n",totalDiag[6],totalDiag[7],totalDiag[8]);
-        printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",totalDiag[9], totalDiag[10], totalDiag[11], totalDiag[12], totalDiag[13]);
-        printf("Zc = %10.5e \n", totalDiag[16]);
-        totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag, 0);
-        totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+3, 1);
-        totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+6, 2);
-        totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+9,     0);
-        totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+10, 1);
-        totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+11,      2);
-        totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+12,    3);
-        totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+13,4);
-        totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+14, 3);
+        runDiag(threadBlocks, gpuSource, numberOfParticles,totalDiag, integrateStream);
         cudaDeviceSynchronize();
         S->setDiagnostics(totalDiag);
         S->writediagnosis(fdiag);
-/*        printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalVorticity[0],totalVorticity[1],totalVorticity[2]);
-        printf("totalLI = %10.5e, %10.5e, %10.5e \n",linearImpulse[0],linearImpulse[1],linearImpulse[2]);
-        printf("totalAI = %10.5e, %10.5e, %10.5e \n",angularImpulse[0],angularImpulse[1],angularImpulse[2]);
-        printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",enstrophy[0], kineticenergy[0], helicity[0], enstrophyF[0], kineticenergyF[0]);
-*/
-        printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalDiag[0],totalDiag[1],totalDiag[2]);
-        printf("totalLI = %10.5e, %10.5e, %10.5e \n",totalDiag[3],totalDiag[4],totalDiag[5]);
-        printf("totalAI = %10.5e, %10.5e, %10.5e \n",totalDiag[6],totalDiag[7],totalDiag[8]);
-        printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",totalDiag[9], totalDiag[10], totalDiag[11], totalDiag[12], totalDiag[13]);
-        if(totalDiag[15]!=0)
-            printf("Zc = %10.5e \n", totalDiag[14]/totalDiag[15]);
     }
 
     for(size_t i = 1; i<=_n; ++i){
@@ -315,36 +274,11 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
         S->write(f);  //write particles info after interaction of the last time step
         if(diagnose){
             checkGPUError(cudaMemset(totalDiag,0,17*sizeof(double)));
-            printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalDiag[0],totalDiag[1],totalDiag[2]);
-            printf("totalLI = %10.5e, %10.5e, %10.5e \n",totalDiag[3],totalDiag[4],totalDiag[5]);
-            printf("totalAI = %10.5e, %10.5e, %10.5e \n",totalDiag[6],totalDiag[7],totalDiag[8]);
-            printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",totalDiag[9], totalDiag[10], totalDiag[11], totalDiag[12], totalDiag[13]);
-            printf("Zc = %10.5e \n", totalDiag[16]);
-            totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag, 0);
-            totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+3, 1);
-            totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+6, 2);
-            totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+9,     0);
-            totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+10, 1);
-            totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+11,      2);
-            totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+12,    3);
-            totalQuadDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, numberOfParticles, totalDiag+13,4);
-            totalLinDiag<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,2*threadBlockSize*sizeof(double3),integrateStream >>>(gpuSource,numberOfParticles,totalDiag+14, 3);
+            runDiag(threadBlocks, gpuSource, numberOfParticles,totalDiag, integrateStream);
             cudaDeviceSynchronize();
-            //S->setDiagnostics(totalVorticity, linearImpulse, angularImpulse, enstrophy, kineticenergy, helicity, enstrophyF, kineticenergyF);
             S->setDiagnostics(totalDiag);
             fwrite(&t,sizeof(double),1,fdiag);
             S->writediagnosis(fdiag);
-/*        printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalVorticity[0],totalVorticity[1],totalVorticity[2]);
-        printf("totalLI = %10.5e, %10.5e, %10.5e \n",linearImpulse[0],linearImpulse[1],linearImpulse[2]);
-        printf("totalAI = %10.5e, %10.5e, %10.5e \n",angularImpulse[0],angularImpulse[1],angularImpulse[2]);
-        printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",enstrophy[0], kineticenergy[0], helicity[0], enstrophyF[0], kineticenergyF[0]);
-*/
-            printf("totalVor = %10.5e, %10.5e, %10.5e \n",totalDiag[0],totalDiag[1],totalDiag[2]);
-            printf("totalLI = %10.5e, %10.5e, %10.5e \n",totalDiag[3],totalDiag[4],totalDiag[5]);
-            printf("totalAI = %10.5e, %10.5e, %10.5e \n",totalDiag[6],totalDiag[7],totalDiag[8]);
-            printf("totalE = %10.5e, totalKE = %10.5e, totalH = %10.5e, totalEf = %10.5e, totalKEf = %10.5e \n",totalDiag[9], totalDiag[10], totalDiag[11], totalDiag[12], totalDiag[13]);
-            if(totalDiag[15]!=0)
-                printf("Zc = %10.5e \n", totalDiag[14]/totalDiag[15]);
         }
     }
     fclose(f);
@@ -356,15 +290,6 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
     checkGPUError(cudaFree(gpuTarget));
     checkGPUError(cudaFreeHost(cpuBuffer));
     checkGPUError(cudaFreeHost(totalDiag));
-/*    checkGPUError(cudaFreeHost(totalVorticity));
-    checkGPUError(cudaFreeHost(linearImpulse));
-    checkGPUError(cudaFreeHost(angularImpulse));
-    checkGPUError(cudaFreeHost(enstrophy    ));
-    checkGPUError(cudaFreeHost(kineticenergy));
-    checkGPUError(cudaFreeHost(helicity     ));
-    checkGPUError(cudaFreeHost(enstrophyF   ));
-    checkGPUError(cudaFreeHost(kineticenergyF));
-*/
 }
 
 
