@@ -10,8 +10,8 @@
 #ifndef WAKE_UTILS_H_
 #define WAKE_UTILS_H_
 
-#define HIGHORDER 0
-#define GAUSSIAN 1
+#define HIGHORDER 1
+#define GAUSSIAN 0
 
 #include "src/utils/gsl_utils.h"
 #include <gsl/gsl_blas.h>

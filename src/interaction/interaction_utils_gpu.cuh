@@ -24,6 +24,12 @@ __device__ inline void VORSTRETCH_GPU(const double &q, const double &F, const do
 
 __device__ inline void DIFFUSION_GPU(double nu, double sigma, double n, const double4 &source_vorticity,
                                      const double4 &target_vorticity, double3 &retvorcity );
+__device__ inline double3 getvorticity(const double4 *particles, const unsigned int i);
+__device__ inline double3 getlinearimpulse(const double4 *particles, const unsigned int i);
+__device__ inline double3 getangularimpulse(const double4 *particles, const unsigned int i);
+__device__ inline double3 getangularimpulse(const double4 *particles, const unsigned int i);
+__device__ inline double3 getZc(const double4 *particles, const unsigned int i);
+__device__ inline double3 getVi(const double4 *particles, const unsigned int i);
 //Math functions
 template<typename A,typename B>
 __device__  inline void add(A &a, B b);
@@ -173,6 +179,18 @@ __device__ inline double3 getZc(const double4 *particles, const unsigned int i){
                       0.0};   //{numerator, denominator, Zc value could go here later}
 
     return result;
+}
+__device__ inline double3 getVi(const double4 *particles, const unsigned int i){
+    double3 displacement {-particles[2 * i].x,
+                          -particles[2 * i].y,
+                          -particles[2 * i].z};
+    double rho = dnrm2(displacement);
+    double sigma = particles[2 * i].w;
+    double q = QSIG_GPU(rho,sigma);
+    double3 partContribVel {0,0,0};
+    VELOCITY_GPU(-q,particles[2 * i + 1],displacement,partContribVel);
+
+    return partContribVel;
 }
 __device__ inline void ENSTROPHY(const double4 &source_pos,
                                    const double4 &target_pos,

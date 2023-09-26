@@ -126,6 +126,9 @@ __device__ inline void reduction_lindiag(const double4 *particles, const size_t 
             case 3://centroid position
                 mySum = getZc(particles,i);
                 break;
+            case 4://induced velocity at origin
+                mySum = getVi(particles,i);
+                break;
         }
     }
 
@@ -141,7 +144,10 @@ __device__ inline void reduction_lindiag(const double4 *particles, const size_t 
                 temp = getangularimpulse(particles, i + blockDim.x);
                 break;
             case 3://centroid position
-                temp = getZc(particles,i);
+                temp = getZc(particles,i + blockDim.x);
+                break;
+            case 4://induced velocity at origin
+                temp = getVi(particles,i + blockDim.x);
                 break;
         }
         mySum.x += temp.x;

@@ -19,7 +19,7 @@ __device__ inline double ZETASIG_GPU(	const double &rho, const double &sigma) {
     return 1.875*M_1_PI/pow(rho_bar*rho_bar + 1.0,3.5)/pow(sigma,3);
 }
 
-__device__ double QSIG_GPU(const double &rho, const double &sigma) {
+__device__ inline double QSIG_GPU(const double &rho, const double &sigma) {
     double rho_bar = rho/sigma;
     double rho_bar2 = rho_bar * rho_bar;
     double rho3 = rho*rho*rho;
