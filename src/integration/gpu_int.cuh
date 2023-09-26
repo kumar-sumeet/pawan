@@ -8,13 +8,13 @@
 
 namespace pawan{
     template<int threadBlockSize = 128, int unrollFactor = 1>
-    class gpu_euler : public __integration{
+    class gpu_int : public __integration{
 
     public:
-        gpu_euler(const double &t, const size_t &n);
-        gpu_euler();
+        gpu_int(const double &t, const size_t &n);
+        gpu_int();
 
-        ~gpu_euler() = default;
+        ~gpu_int() = default;
 
         void integrate(__system *S,
                        __io *IO,
@@ -32,9 +32,9 @@ namespace pawan{
 void resizeToFit(double4 *cpu, double4 *gpu1, double4 *gpu2, size_t &size, int particles);
 
 template<int threadBlockSize, int unrollFactor>
-pawan::gpu_euler<threadBlockSize,unrollFactor>::gpu_euler(const double &t, const size_t &n):__integration(t,n){}
+pawan::gpu_int<threadBlockSize,unrollFactor>::gpu_int(const double &t, const size_t &n):__integration(t, n){}
 template<int threadBlockSize, int unrollFactor>
-pawan::gpu_euler<threadBlockSize,unrollFactor>::gpu_euler():__integration(){}
+pawan::gpu_int<threadBlockSize,unrollFactor>::gpu_int():__integration(){}
 
 template<int threadBlockSize = 128, int unrollFactor = 1>
 __global__ void stepKernel(const double4 *source, double4 *target, double3 *rates, const size_t N, const double nu,const double dt) {
@@ -63,12 +63,6 @@ __global__ void stepKernel(const double4 *source, double4 *target, double3 *rate
 
         target[2 * index] = ownPosition;
         target[2 * index + 1] = ownVorticity;
-        if(index==0) {
-            printf("        rates position = %+21.16e, %+21.16e, %+21.16e\n", rates[0].x, rates[0].y, rates[0].z);
-            printf("        rates vorticity = %+21.16e, %+21.16e, %+21.16e\n", rates[1].x, rates[1].y, rates[1].z);
-            printf("        position = %+21.16e, %+21.16e, %+21.16e\n", target[0].x, target[0].y, target[0].z);
-            printf("        vorticity = %+21.16e, %+21.16e, %+21.16e\n", target[1].x, target[1].y, target[1].z);
-        }
     }
 
 }
@@ -204,9 +198,9 @@ void runDiag(const size_t threadBlocks, const double4 *gpuSource, const size_t n
 }
 
 template<int threadBlockSize, int unrollFactor>
-void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO,
-                                                               NetworkInterfaceTCP<OPawanRecvData, OPawanSendData> *networkCommunicatorTest,
-                                                               bool diagnose) {
+void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO,
+                                                             NetworkInterfaceTCP<OPawanRecvData, OPawanSendData> *networkCommunicatorTest,
+                                                             bool diagnose) {
     //Because openmp does not work in cuda files currently, we switch measurement system
     auto tStart = std::chrono::high_resolution_clock::now();
     FILE *fdiag = IO->create_binary_file(".diagnosis");
@@ -302,7 +296,7 @@ void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *
     checkGPUError(cudaFreeHost(cpuBuffer));
 }
 template<int threadBlockSize, int unrollFactor>
-void pawan::gpu_euler<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO, bool diagnose) {
+void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO, bool diagnose) {
     FILE *f = IO->create_binary_file(".wake");
     FILE *fdiag = IO->create_binary_file(".diagnosis");
     double t = 0.0;

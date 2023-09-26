@@ -27,7 +27,7 @@
 #include "src/networkinterface/networkinterface.h"
 #include "src/networkinterface/networkinterface.cpp" //templates included this way
 #include "interaction/gpu.cuh"
-#include "integration/gpu_euler.cuh"
+#include "integration/gpu_int.cuh"
 #include "test.cuh"
 
 #define OUTPUTIP "127.0.0.1"
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]){
     //pawan::__interaction *S = new pawan::__interaction(W);
     pawan::__interaction *S = new pawan::__parallel(W);
     //pawan::__integration *IN = new pawan::__integration();
-    pawan::__integration *IN = new pawan::gpu_euler<>();
+    pawan::__integration *IN = new pawan::gpu_int<>();
     IN->integrate(S,IOdym,&networkCommunicatorTest,false);
     delete IN;
     delete S;
@@ -184,7 +184,7 @@ int main(int argc, char* argv[]){
 
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
     pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    pawan::__integration *INvring = new pawan::gpu_euler<>(5,100);
+    pawan::__integration *INvring = new pawan::gpu_int<>(5, 100);
     //pawan::__integration *INvring = new pawan::__integration(0.25,5);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 

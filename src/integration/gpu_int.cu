@@ -1,4 +1,4 @@
-#include "gpu_euler.cuh"
+#include "gpu_int.cuh"
 
 void resizeToFit(double4 *cpu, double4 *gpu1, double4 *gpu2, size_t &size, int particles) {
 
