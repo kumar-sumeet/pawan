@@ -22,7 +22,7 @@ __device__ inline void VELOCITY_GPU(double kernel, const double4 &vorticity, con
 __device__ inline void VORSTRETCH_GPU(const double &q, const double &F, const double4 &source_vorticity,
                                       const double4 &target_vorticity, double3 &displacement, double3 &retvorcity );
 
-__device__ inline void DIFFUSION_GPU(double nu, double sigma, double Z, const double4 &source_vorticity,
+__device__ inline void DIFFUSION_GPU(double nu, double sigma, double n, const double4 &source_vorticity,
                                      const double4 &target_vorticity, double3 &retvorcity );
 //Math functions
 template<typename A,typename B>
@@ -70,7 +70,7 @@ __device__ inline void INTERACT_GPU(const double nu,
 
     // Rate of change of vorticity computation
     VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
-    DIFFUSION_GPU(nu,sigma,Z,source_vorticity,target_vorticity,retvorticity);
+    DIFFUSION_GPU(nu,sigma,n,source_vorticity,target_vorticity,retvorticity);
 
 }
 
@@ -110,7 +110,7 @@ __device__ inline void VORSTRETCH_GPU(const double &q,
 
 __device__ inline void DIFFUSION_GPU(const double nu,
                                      const double sigma,
-                                     const double Z,
+                                     const double n,
                                      const double4 &source_vorticity,
                                      const double4 &target_vorticity,
                                      double3 &retvorcity ){
@@ -127,7 +127,7 @@ __device__ inline void DIFFUSION_GPU(const double nu,
     // dva = 2*nu*Z*(va12 - va21)/sigma^2
     double sig12 = 0.5*sigma*sigma;
     subtract(va12,va21);
-    scale(Z*nu/sig12,va12);
+    scale(n*nu/sig12,va12);
 
     // da = da + dva
     // Difference to CPU version:
