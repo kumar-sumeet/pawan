@@ -220,6 +220,7 @@ class __interaction : public __system{
         virtual void setDiagnostics(double *totalDiag);
         //write diagnostics to file
         virtual void writediagnosis(FILE *fdiag);
+        virtual void printdiagnostics(double *totalDiag);
         virtual void writenu(FILE *fdiag);
 
 		//! Set states

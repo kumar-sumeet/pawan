@@ -48,6 +48,7 @@ class __system{
 		virtual void write(FILE *f){};
 		//write diagnostics to file
         virtual void writediagnosis(FILE *fdiag){};
+        virtual void printdiagnostics(double *totalDiag){};
         virtual void writenu(FILE *fdiag){};
 
 		//! Set states

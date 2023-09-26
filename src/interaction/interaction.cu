@@ -18,7 +18,7 @@ pawan::__interaction::__interaction(){
 	_totalVorticity = gsl_vector_calloc(3);
 	_linearImpulse = gsl_vector_calloc(3);
 	_angularImpulse = gsl_vector_calloc(3);
-    //printf("_nu = %+8.3e\n",_nu);
+    printf("_nu = %+8.3e\n",_nu);
 }
 
 pawan::__interaction::__interaction(__wake *W):__interaction(){
@@ -153,6 +153,8 @@ void pawan::__interaction::diagnose(){
         if (denom != 0.0) {
             _Zc = num / denom;
         }
+        OUT("num ",num);
+        OUT("denom ",denom);
     }
     OUT("Centroid of wake Zc",_Zc);
 
@@ -347,6 +349,21 @@ void pawan::__interaction::writediagnosis(FILE *fdiag){
     fwrite(&_kineticEnergy,sizeof(double),1,fdiag);
     fwrite(&_kineticEnergyF,sizeof(double),1,fdiag);
     fwrite(&_Zc,sizeof(double),1,fdiag);
+}
+
+void pawan::__interaction::printdiagnostics(double *totalDiag){
+    printf("\tTotal Vorticity = \t%21.16e %21.16e %21.16e \n", totalDiag[0], totalDiag[1], totalDiag[2]);
+    printf("\tLinear Impulse  = \t%21.16e %21.16e %21.16e \n", totalDiag[3], totalDiag[4], totalDiag[5]);
+    printf("\tAngular Impulse = \t%21.16e %21.16e %21.16e \n", totalDiag[6], totalDiag[7], totalDiag[8]);
+    printf("Helicity            = %21.16e \n", totalDiag[11]);
+    printf("Enstrophy           = %21.16e \n", totalDiag[9]);
+    printf("EnstrophyF          = %21.16e \n", totalDiag[12]);
+    printf("KineticEnergy       = %21.16e \n", totalDiag[10]);
+    printf("KineticEnergyF      = %21.16e \n", totalDiag[13]);
+    if(totalDiag[15]!=0) {
+        printf("Centroid of wake Zc = %21.16e \n", totalDiag[14] / totalDiag[15]);
+    }
+    printf("	vbi = %21.16e, %21.16e, %21.16e \n", totalDiag[17],totalDiag[18],totalDiag[19]);
 }
 
 void pawan::__interaction::setStates(const gsl_vector *state){
