@@ -247,6 +247,7 @@ class __interaction : public __system{
         //For gpu code
         void setParticles(double *particles) override;
         void getParticles(double *particles) override;
+        void getParticles_arr(double *particles) override;
         int amountParticles() override;
         int totalmaxParticles() override;
         double getNu() override;

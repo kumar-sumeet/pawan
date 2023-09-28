@@ -11,8 +11,8 @@
 pawan::__interaction::__interaction(){
     DOUT("--------------------------------in pawan::__interaction::__interaction()");
 	//_nu = 2.0e-2;
-	_nu = 2.5e-3;   //vring
-    //_nu = 1.56e-5;    //coupling
+	//_nu = 2.5e-3;   //vring
+    _nu = 1.56e-5;    //coupling
     //_nu = 0.0;
 	_nWake = 0;
 	_totalVorticity = gsl_vector_calloc(3);
@@ -452,7 +452,7 @@ void pawan::__interaction::getInflow(PawanRecvData pawanrecvdata, PawanSendData 
             for (size_t k = 0; k < 3; ++k) {
                 lambda[astidx*3 + k] = gsl_vector_get(vbi, k);
             }
-            printf("lambda = %10.5e, %10.5e, %10.5e \n",lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2]);
+            printf("lambda = %+10.5e, %+10.5e, %+10.5e \n",lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2]);
             astidx++;
             gsl_vector_free(vbi);
             gsl_vector_free(rast);
@@ -784,7 +784,30 @@ void pawan::__interaction::getParticles(double *p){
             particlesBuffer[2 * position + 1].y = gsl_matrix_get(w->_vorticity, i, 1);
             particlesBuffer[2 * position + 1].z = gsl_matrix_get(w->_vorticity, i, 2);
             particlesBuffer[2 * position + 1].w = gsl_vector_get(w->_volume, i);
+        }
+    }
+}
 
+void pawan::__interaction::getParticles_arr(double *p){
+
+    int position = 0;
+
+    int totalparticles = amountParticles();
+
+    for(auto const w : _W){
+        for(int i = 0; i < w->_numParticles; i++, position++) {
+            p[                   position] = gsl_matrix_get(w->_position, i, 0);
+            p[  totalparticles + position] = gsl_matrix_get(w->_position, i, 1);
+            p[2*totalparticles + position] = gsl_matrix_get(w->_position, i, 2);
+            p[3*totalparticles + position] = gsl_vector_get(w->_radius,   i);
+            p[4*totalparticles + position] = gsl_matrix_get(w->_vorticity, i, 0);
+            p[5*totalparticles + position] = gsl_matrix_get(w->_vorticity, i, 1);
+            p[6*totalparticles + position] = gsl_matrix_get(w->_vorticity, i, 2);
+            p[7*totalparticles + position] = gsl_vector_get(w->_volume,    i);
+            p[8*totalparticles + position] = sqrt( gsl_matrix_get(w->_vorticity, i, 0)*gsl_matrix_get(w->_vorticity, i, 0)
+                                                  +gsl_matrix_get(w->_vorticity, i, 1)*gsl_matrix_get(w->_vorticity, i, 1)
+                                                  +gsl_matrix_get(w->_vorticity, i, 2)*gsl_matrix_get(w->_vorticity, i, 2)
+                                                 );
         }
     }
 

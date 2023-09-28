@@ -15,6 +15,7 @@
 #include <gsl/gsl_vector.h>
 #include "src/utils/print_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
+#include "../teciosrc/TECIO.h"
 
 namespace pawan{
 class __system{
@@ -82,6 +83,7 @@ class __system{
          * pointer should be actually double4
          */
         virtual void getParticles(double *particles) = 0;
+        virtual void getParticles_arr(double *particles) = 0;
         virtual int amountParticles() = 0;
         virtual int totalmaxParticles() = 0;
         virtual double getNu() = 0;

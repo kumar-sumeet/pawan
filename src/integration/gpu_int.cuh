@@ -4,11 +4,24 @@
 #include "integration.h"
 #include "interaction/gpu.cuh"
 #include "wake/wake.h"
+#include "interaction/interaction_utils_gpu.cuh"
+#define XDIM 2
+#define YDIM 3
+#define ZDIM 4
+#if !defined NULL
+#define NULL 0
+#endif
+#define XVARNUM 1
+#define YVARNUM 2
+#define ZVARNUM 3
 
 
 namespace pawan{
     template<int threadBlockSize = 128, int unrollFactor = 1>
     class gpu_int : public __integration{
+
+    private:
+        void writeszl(void *fileHandle, double *p, double &t, int &numberOfParticles);
 
     public:
         gpu_int(const double &t, const size_t &n);
@@ -96,12 +109,6 @@ __global__ void rk4stepKernel(const double4 *source, const double4 *x, double4 *
 
         target[2 * index] = ownPosition;
         target[2 * index + 1] = ownVorticity;
-        if(index==0) {
-            printf("        rates position = %+21.16e, %+21.16e, %+21.16e\n", rates[0].x, rates[0].y, rates[0].z);
-            printf("        rates vorticity = %+21.16e, %+21.16e, %+21.16e\n", rates[1].x, rates[1].y, rates[1].z);
-            printf("        position = %+21.16e, %+21.16e, %+21.16e\n", target[0].x, target[0].y, target[0].z);
-            printf("        vorticity = %+21.16e, %+21.16e, %+21.16e\n", target[1].x, target[1].y, target[1].z);
-        }
     }
 
 }
@@ -111,18 +118,6 @@ __global__ void rk4finalstepKernel(const double4 *source, double4 *target,
                                    const double3 *k1, const double3 *k2, const double3 *k3, const double3 *k4,
                                    const size_t N, const double dt) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if(tid==0) {
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
-        printf("Position change of 1st particle     : %+21.16e, %+21.16e, %+21.16e\n",
-               (dt / 6.0) * (k1[2 * tid].x + 2.0 * k2[2 * tid].x + 2.0 * k3[2 * tid].x + k4[2 * tid].x),
-               (dt / 6.0) * (k1[2 * tid].y + 2.0 * k2[2 * tid].y + 2.0 * k3[2 * tid].y + k4[2 * tid].y),
-               (dt / 6.0) * (k1[2 * tid].z + 2.0 * k2[2 * tid].z + 2.0 * k3[2 * tid].z + k4[2 * tid].z));
-        printf("Vorticity change of 1st particle    : %+21.16e, %+21.16e, %+21.16e\n",
-               (dt / 6.0) * (k1[2 * tid + 1].x + 2.0 * k2[2 * tid + 1].x + 2.0 * k3[2 * tid + 1].x + k4[2 * tid + 1].x),
-               (dt / 6.0) * (k1[2 * tid + 1].y + 2.0 * k2[2 * tid + 1].y + 2.0 * k3[2 * tid + 1].y + k4[2 * tid + 1].y),
-               (dt / 6.0) * (k1[2 * tid + 1].z + 2.0 * k2[2 * tid + 1].z + 2.0 * k3[2 * tid + 1].z + k4[2 * tid + 1].z));
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n");
-    }
 
     if (tid < N) {
         target[2 * tid].x     = source[2 * tid].x     + (dt/6.0) * (k1[2 * tid].x     + 2.0*k2[2 * tid].x     + 2.0*k3[2 * tid].x     + k4[2 * tid].x);
@@ -198,6 +193,31 @@ void runDiag(const size_t threadBlocks, const double4 *gpuSource, const size_t n
 }
 
 template<int threadBlockSize, int unrollFactor>
+void pawan::gpu_int<threadBlockSize,unrollFactor>::writeszl(void *fileHandle, double *p, double &t, int &numberOfParticles){
+    int32_t zoneHandle;
+    int varTypes[9] = {FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,
+                       FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,
+                       FieldDataType_Double};
+    std::string s;
+    std::stringstream convert;
+    convert << t;
+    s = convert.str();
+    std::vector<int32_t> valueLocations(9, 1);
+    int32_t tmp;
+    tmp = tecZoneCreateIJK(fileHandle, s.c_str(), numberOfParticles, 1, 1, &varTypes[0], 0,&valueLocations[0], 0, 0, 0, 0, &zoneHandle);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 1, 0, numberOfParticles, &p[0]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 2, 0, numberOfParticles, &p[numberOfParticles]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 3, 0, numberOfParticles, &p[2*numberOfParticles]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 4, 0, numberOfParticles, &p[4*numberOfParticles]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 5, 0, numberOfParticles, &p[5*numberOfParticles]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 6, 0, numberOfParticles, &p[6*numberOfParticles]);
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 7, 0, numberOfParticles, &p[3*numberOfParticles]); //radius
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 8, 0, numberOfParticles, &p[7*numberOfParticles]); //vol
+    tmp = tecZoneVarWriteDoubleValues(fileHandle, zoneHandle, 9, 0, numberOfParticles, &p[8*numberOfParticles]); //Vor_strength
+    tmp =   tecZoneSetUnsteadyOptions(fileHandle, zoneHandle, t, 1);
+}
+
+template<int threadBlockSize, int unrollFactor>
 void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S, pawan::__io *IO,
                                                              NetworkInterfaceTCP<OPawanRecvData, OPawanSendData> *networkCommunicatorTest,
                                                              bool diagnose) {
@@ -208,57 +228,58 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     networkCommunicatorTest->getrecieveBuffer(opawanrecvdata);
     _t = opawanrecvdata.t;
     FILE *f = IO->create_binary_file(".wake");
-    if(diagnose) {
-        S->writenu(fdiag);
-        S->diagnose();
-        fwrite(&_t,sizeof(double),1,fdiag);
-        S->writediagnosis(fdiag);
-    }
 
+    cudaStream_t integrateStream; cudaStreamCreate(&integrateStream);
     //Memory allocations:
     //two GPU buffers so that in each step the result can be written
     //without having to wait on all threads finishing
     //one pinned memory buffer on the cpu for copying states back
-    int numberOfParticles = S->amountParticles();
+    int numberOfParticles;
     int maxnumberOfParticles = S->totalmaxParticles();
     size_t mem_size = maxnumberOfParticles * 2 * sizeof(double4);
-
+    size_t mem_sized3 = maxnumberOfParticles * 2 * sizeof(double3);
     double4 *gpuSource, *gpuTarget, *cpuBuffer;
+    double3 *divfreevor;
     checkGPUError(cudaMallocHost(&cpuBuffer, mem_size));
     checkGPUError(cudaMalloc(&gpuSource, mem_size));
     checkGPUError(cudaMalloc(&gpuTarget, mem_size));
+    checkGPUError(cudaMalloc(&divfreevor, mem_sized3));
+    double4 *x1, *x2, *x3;
+    double3 *k1, *k2, *k3, *k4;
+    checkGPUError(cudaMalloc(&x1, mem_size));checkGPUError(cudaMalloc(&x2, mem_size));checkGPUError(cudaMalloc(&x3, mem_size));
+    checkGPUError(cudaMalloc(&k1, mem_sized3));checkGPUError(cudaMalloc(&k2, mem_sized3));checkGPUError(cudaMalloc(&k3, mem_sized3));checkGPUError(cudaMalloc(&k4, mem_sized3));
+    double *totalDiag;
+    checkGPUError(cudaMallocHost(&totalDiag, 20*sizeof(double)));
 
-    //Transfer particles to GPU
-    S->getParticles(reinterpret_cast<double *>(cpuBuffer));
-    checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
+    size_t threadBlocks;// = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
 
+    std::string szlfilename = IO->getSzlFile();
+    std::string variables("x y z vor_x vor_y vor_z radius vol Vor_strength");//9 variables
+    int varTypes[9] = {FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,
+                       FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,FieldDataType_Double,
+                       FieldDataType_Double};
+    void* fileHandle;
+    int32_t res = tecFileWriterOpen(szlfilename.c_str(),"IJK Ordered Zone",variables.c_str(),1,0,FieldDataType_Double,0,&fileHandle);
+    double *p = (double*) malloc(maxnumberOfParticles * 9 * sizeof(double));
 
     size_t stepnum = 0;
+    double relax_factor = 0.5;   //f*delta_t from Pedrizetti's equation
     while(_t <= opawanrecvdata.tfinal){
         OUT("\tTime",_t);
         OUT("\tStepNum",stepnum);
 
-        //number of particles might have changed
-        numberOfParticles = S->amountParticles();
-        //mem_size = numberOfParticles * 2 * sizeof(double4);
-
-        //resizeToFit(cpuBuffer, gpuSource, gpuTarget, mem_size, S->amountParticles());
         S->getParticles(reinterpret_cast<double *>(cpuBuffer));
         checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
+        numberOfParticles = S->amountParticles();
+        threadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
+        printf("\tnumberOfParticles = %10d",numberOfParticles);
 
-        size_t threadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
-        //eulerKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize>>>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt);
-
+        //stepKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, rates,numberOfParticles,S->getNu(), _dt);
+        rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), opawanrecvdata.deltat, x1, x2, x3, k1, k2, k3, k4, integrateStream, threadBlocks);
         checkGPUError(cudaMemcpy(cpuBuffer,gpuTarget,mem_size,cudaMemcpyDeviceToHost));
         S->setParticles(reinterpret_cast<double *>(cpuBuffer));
 
-        //S->relax(stepnum);
-        if(diagnose){
-            S->diagnose();
-            fwrite(&_t,sizeof(double),1,fdiag);
-            S->writediagnosis(fdiag);
-        }
-        int transient_steps = 360;
+        int transient_steps = opawanrecvdata.transientsteps;
         if (stepnum < transient_steps) {
             printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
             opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 15 * (transient_steps - stepnum) / transient_steps;
@@ -266,17 +287,16 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
                    opawanrecvdata.Vinf[2]);
         }
 
-
         S->updateVinfEffect(opawanrecvdata.Vinf,opawanrecvdata.deltat);
         //S->updateBoundVorEffect(&opawanrecvdata,_dt);
         fwrite(&_t,sizeof(double),1,f);
         S->write(f);  //write particles info after interaction in this time step
+        S->getParticles_arr(p);
+        writeszl(fileHandle,p,_t,numberOfParticles);
 
         OPawanSendData opawansenddata;//create it once outside the loop and should be good
         S->getInflow(&opawanrecvdata,&opawansenddata);
         networkCommunicatorTest->send_data(opawansenddata);
-
-        //S->diagnose();
         stepnum = stepnum+1;
         if(_t <= (opawanrecvdata.tfinal - 1*opawanrecvdata.deltat)){ //run till end of dymore sim
             networkCommunicatorTest->recieve_data(opawanrecvdata);
@@ -287,6 +307,8 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
             break;
     }
     fclose(f);
+    free(p);
+    res = tecFileWriterClose(&fileHandle);
     auto tEnd = std::chrono::high_resolution_clock::now();
 
     OUT("Total Time (s)",std::chrono::duration<double>(tEnd - tStart).count());
@@ -316,7 +338,6 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     int maxnumberOfParticles = S->totalmaxParticles();
     size_t mem_size = maxnumberOfParticles * 2 * sizeof(double4);
     size_t mem_sized3 = maxnumberOfParticles * 2 * sizeof(double3);
-
     double4 *gpuSource, *gpuTarget, *cpuBuffer;
     double3 *rates;
     checkGPUError(cudaMallocHost(&cpuBuffer, mem_size));
@@ -327,9 +348,9 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     double3 *k1, *k2, *k3, *k4;
     checkGPUError(cudaMalloc(&x1, mem_size));checkGPUError(cudaMalloc(&x2, mem_size));checkGPUError(cudaMalloc(&x3, mem_size));
     checkGPUError(cudaMalloc(&k1, mem_sized3));checkGPUError(cudaMalloc(&k2, mem_sized3));checkGPUError(cudaMalloc(&k3, mem_sized3));checkGPUError(cudaMalloc(&k4, mem_sized3));
-
     double *totalDiag;
     checkGPUError(cudaMallocHost(&totalDiag, 20*sizeof(double)));
+
     //Transfer particles to GPU
     S->getParticles(reinterpret_cast<double *>(cpuBuffer));
     checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
@@ -343,44 +364,23 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
         runDiag(threadBlocks, gpuSource, numberOfParticles,totalDiag, integrateStream);
         cudaDeviceSynchronize();
         S->printdiagnostics(totalDiag);
-
         S->setDiagnostics(totalDiag);
         S->writediagnosis(fdiag);
     }
 
     //Because openmp does not work in cuda files currently, we switch measurement system
     auto tStart = std::chrono::high_resolution_clock::now();
-    std::cout <<"\tStep = " << 1 << "\n";
-    //stepKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize,0,integrateStream >>>(gpuSource,gpuTarget,rates,numberOfParticles,S->getNu(), _dt);
-    rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, threadBlocks);
-    cudaDeviceSynchronize();
-    if(diagnose) {
-        //S->writenu(fdiag);
-        fwrite(&t,sizeof(double),1,fdiag);
-        checkGPUError(cudaMemset(totalDiag,0.0,20*sizeof(double)));
-        runDiag(threadBlocks, gpuTarget, numberOfParticles,totalDiag, integrateStream);
-        cudaDeviceSynchronize();
-        S->printdiagnostics(totalDiag);
-
-        S->setDiagnostics(totalDiag);
-        S->writediagnosis(fdiag);
-    }
-
     for(size_t i = 1; i<=_n; ++i){
-        //switch source and target
-        double4 * temp = gpuSource;
-        gpuSource = gpuTarget;
-        gpuTarget = temp;
 
         //Wait for step i-1 to finish calculating
         checkGPUError(cudaStreamSynchronize(integrateStream));
 
         //if not in the last step, start the next one
         if(i < _n) {
-            OUT("\tStep", i+1);
+            OUT("\tStep", i);
             //stepKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, rates,numberOfParticles,S->getNu(), _dt);
             rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, threadBlocks);
-            cudaDeviceSynchronize();
+            //cudaDeviceSynchronize();
         }
 
         //Start copy the result of the previous calculation
@@ -402,6 +402,10 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
             fwrite(&t,sizeof(double),1,fdiag);
             S->writediagnosis(fdiag);
         }
+        //switch source and target
+        double4 * temp = gpuSource;
+        gpuSource = gpuTarget;
+        gpuTarget = temp;
     }
     fclose(f);
     auto tEnd = std::chrono::high_resolution_clock::now();

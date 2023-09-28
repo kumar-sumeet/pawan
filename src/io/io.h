@@ -45,6 +45,7 @@ class __io{
 		 * Returns filename
 		 */
 		virtual std::string getFile();
+        virtual std::string getSzlFile();
 
 		//! Create binary file
 		/*

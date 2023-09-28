@@ -15,10 +15,11 @@
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
 
+#include "../teciosrc/TECIO.h"
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#define MAXNUMPARTICLES 20000 //max particles per wake
+#define MAXNUMPARTICLES 50000 //max particles per wake
 
 namespace pawan{
 

@@ -33,6 +33,10 @@ std::string pawan::__io::getFile(){
 	return (_root + _name);
 }
 
+std::string pawan::__io::getSzlFile(){
+    return (_root + _name );
+}
+
 FILE* pawan::__io::create_binary_file(std::string suffix = ".bin"){
     DOUT("----------------in pawan::__io::create_binary_file()");
     std::string filename = _root + _name + suffix;
