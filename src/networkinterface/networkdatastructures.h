@@ -33,6 +33,8 @@ typedef struct pawanrecvdata {    //better implementation possible perhaps
     double deltat;
     double t; //time
     double tfinal; //final dymore simulation time
+    int griddisc[3];
+    double gridlims[6];
     double span_disc[PAWAN_MAXLFNLINES*PAWAN_MAXAST]; //non-dimensional location of blade spanwise discretization
     double TEpos_prev[PAWAN_MAXLFNLINES*PAWAN_MAXAST*3]; //max 1 rotor, 4 blades, 200 airstations per blade, 3 coordinates
     double circ_prev[PAWAN_MAXLFNLINES*PAWAN_MAXAST];

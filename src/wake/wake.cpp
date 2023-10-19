@@ -183,7 +183,7 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
     int transientsteps = pawanrecvdata->transientsteps;
     //int infl2D = pawanrecvdata->infl2D;
     //int spanres = pawanrecvdata->spanres;
-    int spanres = 30;  //number of particles over the span of a lfnline
+    int spanres = 100;  //number of particles over the span of a lfnline
     double acrossa = pawanrecvdata->acrossa;
     double deltat = pawanrecvdata->deltat;
     double *spandisc = pawanrecvdata->span_disc;

@@ -15,7 +15,6 @@
 #include <gsl/gsl_vector.h>
 #include "src/utils/print_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#include "../teciosrc/TECIO.h"
 
 namespace pawan{
 class __system{

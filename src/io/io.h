@@ -45,7 +45,9 @@ class __io{
 		 * Returns filename
 		 */
 		virtual std::string getFile();
-        virtual std::string getSzlFile();
+        virtual std::string getSzlWakeFile();
+        virtual std::string getSzlWakeDivFreeFile();
+        virtual std::string getSzlSolFile();
 
 		//! Create binary file
 		/*

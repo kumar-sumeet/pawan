@@ -15,7 +15,7 @@
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
 
-#include "../teciosrc/TECIO.h"
+#include "../tecio/teciosrc/TECIO.h"
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"

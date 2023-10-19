@@ -84,13 +84,14 @@ void pawan::__integration::integrate(__system *S,
         gsl_vector_set_zero(states);
         S->getStates(states);
         step(opawanrecvdata.deltat, S, states);
-        S->relax(stepnum);
+        S->split(stepnum);
+        S->merge(stepnum);
         if (diagnose) {
             S->diagnose();
             fwrite(&_t, sizeof(double), 1, fdiag);
             S->writediagnosis(fdiag);
         }
-        int transient_steps = 360;
+        int transient_steps = opawanrecvdata.transientsteps;
         if (stepnum < transient_steps) {
             printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
             opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 15 * (transient_steps - stepnum) / transient_steps;
@@ -98,7 +99,7 @@ void pawan::__integration::integrate(__system *S,
                    opawanrecvdata.Vinf[2]);
         }
         S->updateVinfEffect(opawanrecvdata.Vinf,opawanrecvdata.deltat);
-        S->updateBoundVorEffect(&opawanrecvdata,_dt);
+        S->updateBoundVorEffect(&opawanrecvdata,opawanrecvdata.deltat);
         fwrite(&_t,sizeof(double),1,f);
         S->write(f);  //write particles info after interaction in this time step
 

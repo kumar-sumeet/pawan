@@ -33,10 +33,13 @@ __device__ inline double3 getVi(const double4 *particles, const unsigned int i);
 //Math functions
 template<typename A,typename B>
 __device__  inline void add(A &a, B b);
+template<class A, class B>
+__device__  inline void scaleadd(A &a, const B &b, const double &c);
 __device__  inline void subtract(double3 &a, double3 b);
 template<typename A,typename B>
 __device__ inline double dot_product(const A &a, const B &b);
 __device__ inline double dnrm2(double3 v);
+__device__ inline double dnrm2(double4 v);
 template<typename A,typename B>
 __device__ inline void cross(const A &a, const B &b, double3 &target);
 __device__ inline void scale(double a, double3 &v);
@@ -75,7 +78,7 @@ __device__ inline void INTERACT_GPU(const double nu,
     add(velocity, vel);
 
     // Rate of change of vorticity computation
-    VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
+    //VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
     DIFFUSION_GPU(nu,sigma,n,source_vorticity,target_vorticity,retvorticity);
 
 }
@@ -86,6 +89,30 @@ __device__ inline void VELOCITY_GPU(const double kernel, const double4 &vorticit
     scale(kernel,velocity);
 }
 
+//classical scheme
+/*__device__ inline void VORSTRETCH_GPU(const double &q,
+                                      const double &F,
+                                      const double4 &source_vorticity,
+                                      const double4 &target_vorticity,
+                                      double3 &displacement,
+                                      double3 &retvorcity ){
+    // a_target x a_source
+    double3 trgXsrc;
+    cross(target_vorticity,source_vorticity,trgXsrc);
+
+    // da/dt = q*(a_trg x a_src)
+    double3 crossed = trgXsrc;
+    scale(q,crossed);
+
+    // da/dt = F*[(disp.a_src)(a_trg x disp)]
+    double d_dot_asrc = dot_product(displacement,source_vorticity);
+    double3 trgXdisp;
+    cross(target_vorticity,displacement,trgXdisp);
+    scale(F*d_dot_asrc,trgXdisp);
+
+    add(retvorcity,crossed);
+    add(retvorcity,trgXdisp);
+}*/
 __device__ inline void VORSTRETCH_GPU(const double &q,
                                       const double &F,
                                       const double4 &source_vorticity,
@@ -104,7 +131,7 @@ __device__ inline void VORSTRETCH_GPU(const double &q,
     // da/dt = F*[disp.(a_trg x a_src)]disp
     double roaxa = dot_product(displacement,trgXsrc);
 
-    scale(-F*roaxa,displacement); //We don't need displacement after this function, so we can destroy it
+    scale(F*roaxa,displacement); //We don't need displacement after this function, so we can destroy it
 
     // Difference to CPU version:
     // - directly change the result vector
@@ -180,17 +207,88 @@ __device__ inline double3 getZc(const double4 *particles, const unsigned int i){
 
     return result;
 }
-__device__ inline double3 getVi(const double4 *particles, const unsigned int i){
-    double3 displacement {-particles[2 * i].x,
-                          -particles[2 * i].y,
-                          -particles[2 * i].z};
+__device__ inline double3 getVi(const double4 &source_pos, const double4 &source_vor, const double3 &pos){
+    double3 displacement {pos.x-source_pos.x,
+                          pos.y-source_pos.y,
+                          pos.z-source_pos.z};
     double rho = dnrm2(displacement);
-    double sigma = particles[2 * i].w;
+    double sigma = source_pos.w;
     double q = QSIG_GPU(rho,sigma);
     double3 partContribVel {0,0,0};
-    VELOCITY_GPU(-q,particles[2 * i + 1],displacement,partContribVel);
-
+    VELOCITY_GPU(-q,source_vor,displacement,partContribVel);
+    //partContribVel.x = 1;
+    //partContribVel.y = 1;
+    //partContribVel.z = 1;
     return partContribVel;
+}
+__device__ inline void getVi(const double4 &source_pos,
+                             const double4 &source_vor,
+                             const double3 &pos,
+                             double3 &partVel){
+    double3 displacement {pos.x-source_pos.x,
+                          pos.y-source_pos.y,
+                          pos.z-source_pos.z};
+    double rho = dnrm2(displacement);
+    double sigma = source_pos.w;
+    double q = QSIG_GPU(rho,sigma);
+    double3 partContribVel {0,0,0};
+    VELOCITY_GPU(-q,source_vor,displacement,partContribVel);
+    //printf("(%f, %f, %f)--",partContribVel.x,partContribVel.y,partContribVel.z);
+    add(partVel, partContribVel);
+/*    partVel.x +=1;
+    partVel.y +=1;
+    partVel.z +=1;
+ */
+}
+
+__device__ inline void DIVFREEOMEGA_GPU(const double4 &source_pos,
+                                      const double4 &target_pos,
+                                      const double4 &target_vorticity,
+                                      double3 &divfreeomega) {
+    double3 displacement {source_pos.x-target_pos.x,
+                          source_pos.y-target_pos.y,
+                          source_pos.z-target_pos.z};
+
+    double rho = dnrm2(displacement);
+    double rho2 = rho*rho;
+    double q = 0.0, Z = 0.0;
+    double sigma = sqrt(0.5*(source_pos.w * source_pos.w + target_pos.w * target_pos.w));
+    Z = ZETASIG_GPU(rho,sigma);
+    q = QSIG_GPU(rho, sigma);
+    double factor1 = Z - q;
+    double factor2 = dot_product(displacement,target_vorticity);
+    factor2 *= (3*q - Z)/rho2;
+
+    divfreeomega.x += factor1 * target_vorticity.x + factor2 * displacement.x;
+    divfreeomega.y += factor1 * target_vorticity.y + factor2 * displacement.y;
+    divfreeomega.z += factor1 * target_vorticity.z + factor2 * displacement.z;
+}
+__device__ inline void GRIDSOL_GPU(const double3 &node_pos,
+                                    const double4 &part_pos,
+                                    const double4 &part_vor,
+                                    double3 &node_vel,
+                                   double3 &node_vor){
+
+    double3 displacement {part_pos.x-node_pos.x,
+                          part_pos.y-node_pos.y,
+                          part_pos.z-node_pos.z};
+
+    double rho = dnrm2(displacement);
+    double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
+    double sigma = part_pos.w;
+
+    KERNEL_GPU(rho,sigma,q,F,Z,n);
+    // Velocity computation of source
+    double3 vel;
+    VELOCITY_GPU(-q,part_vor,displacement,vel);
+
+    add(node_vel, vel);
+    scaleadd(node_vor, part_vor, Z);
+    /*node_vor.x += Z*part_vor.x;
+    node_vor.y += Z*part_vor.y;
+    node_vor.z += Z*part_vor.z;
+*///    node_vel.x +=1;node_vel.y +=1;node_vel.z +=1;
+//node_vor.x +=1;node_vor.y +=1;node_vor.z +=1;
 }
 __device__ inline void ENSTROPHY(const double4 &source_pos,
                                    const double4 &target_pos,
@@ -314,6 +412,13 @@ __device__  inline void add(A &a, const B b) {
     a.z += b.z;
 }
 
+template<class A, class B>
+__device__  inline void scaleadd(A &a, const B &b, const double &c) {
+    a.x += c*b.x;
+    a.y += c*b.y;
+    a.z += c*b.z;
+}
+
 /*
  * subtract b from a and save the result in a
  */
@@ -337,6 +442,13 @@ __device__ inline double dot_product(const A &a, const B &b) {
  * Euclidian norm
  */
 __device__ inline double dnrm2(double3 v) {
+    return sqrt(
+            v.x * v.x
+            + v.y * v.y
+            + v.z * v.z
+    );
+}
+__device__ inline double dnrm2(double4 v) {
     return sqrt(
             v.x * v.x
             + v.y * v.y

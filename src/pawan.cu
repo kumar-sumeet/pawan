@@ -32,16 +32,19 @@
 
 #define OUTPUTIP "127.0.0.1"
 #define NETWORKBUFFERSIZE 50
-#define PORT 8899
 
 int main(int argc, char* argv[]){
 
     std::cout << std::setprecision(16) << std::scientific;
     PAWAN();
-/*
     //%%%%%%%%%%%%     Dymore coupling    %%%%%%%%%%%%%%%%%%
-    NetworkInterfaceTCP<OPawanRecvData,OPawanSendData>
-            networkCommunicatorTest(PORT, OUTPUTIP, PORT, NETWORKBUFFERSIZE, true);
+    int port = 8899;
+    if (argc==2) {
+        char *cli_port = argv[1];
+        port = atoi(cli_port);
+    }
+    NetworkInterfaceTCP<OPawanRecvData, OPawanSendData>
+            networkCommunicatorTest(port, OUTPUTIP, port, NETWORKBUFFERSIZE, true);
     networkCommunicatorTest.socket_init();
     OPawanRecvData opawanrecvdata;
     networkCommunicatorTest.recieve_data(opawanrecvdata);
@@ -57,80 +60,55 @@ int main(int argc, char* argv[]){
     delete IN;
     delete S;
     delete IOdym;
-*/
+
 /*
     //%%%%%%%%%%%%     Fusion rings    %%%%%%%%%%%%%%%%%%
-    pawan::__wake *W1 = new pawan::__vring(1.0,0.1,3,49,0.1924);
-    pawan::__io *IOvring1 = new pawan::__io("vring3by49_1");
-    pawan::__wake *W2 = new pawan::__vring(1.0,0.1,3,49,0.1924);
-    pawan::__io *IOvring2 = new pawan::__io("vring3by49_2");
-    pawan::__io *IOvrings = new pawan::__io("vring3by49vring3by49fusion_rk4");
+    pawan::__io *IOvring = new pawan::__io("vring3by64");
+    FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
+    int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
+    FILE *fvring = IOvring->open_binary_file(".vringwake");
+    pawan::__wake *Wvringtemp = new pawan::__wake(numparticles, fvring);//temp needed in order to use gsl_*_fread()
+    pawan::__wake *Wvring1 = new pawan::__wake(Wvringtemp);
+    pawan::__wake *Wvring2 = new pawan::__wake(Wvringtemp);
 
-    //pawan::__interaction *S = new pawan::__interaction(W1);
-    pawan::__interaction *S1 = new pawan::gpu(W1);
-    pawan::__interaction *S2 = new pawan::gpu(W2);
+    pawan::__io *IOvrings = new pawan::__io("vring3by64vring3by64fusion_rk4");
 
-    pawan::__resolve *R = new pawan::__resolve();
-    R->rebuild(S1,IOvring1);
-    printf("resolved ring 1 \n");
-    R->rebuild(S2,IOvring2);//ip: *.wakeinfluence from above gets overwritten here
-    printf("resolved ring 2 \n");
+    Wvring1->rotate(1,-M_PI/12);  //rotate about y-axis by -15 deg
+    Wvring2->rotate(1,M_PI/12); //rotate about y-axis by 15 deg
+    double translate_vec1[3]={1.35,0.,0.}, translate_vec2[3]={-1.35,0.,0.};
+    Wvring1->translate(translate_vec1);
+    Wvring2->translate(translate_vec2);
 
-    pawan::__wake *Wvring1 = new pawan::__wake(W1);
-    pawan::__wake *Wvring2 = new pawan::__wake(W2);
-    Wvring1->rotate(1,M_1_PI/12);  //rotate about y-axis by 15 deg
-    Wvring2->rotate(1,-M_1_PI/12); //rotate about y-axis by -15 deg
-    double translate_vec[3]={2.7,0.,0.};
-    Wvring2->translate(translate_vec);
+    pawan::__interaction *Svring = new pawan::__interaction(Wvring1,Wvring2);
 
-    //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::gpu<>(Wvring1,Wvring2);
-    //pawan::__interaction *Svring = new pawan::__parallel(Wvring1,Wvring2);
-
-    //relaxed -diverges at 196 steps, normal - diverges at 300
-    pawan::__integration *INvring = new pawan::__integration(15,300);
-    //pawan::__integration *INvring = new pawan::__integration(9.75,195);
-    //pawan::__integration *INvring = new pawan::__rk4(0.01,1);
-    //pawan::__integration *INvring = new pawan::__rk4(25,500);
-
+    pawan::__integration *INvring = new pawan::gpu_int<>(8,160);
     INvring->integrate(Svring,IOvrings,true);
 
     delete Svring;
     delete INvring;
-
-    delete R;
-    delete S1;
-    delete S2;
-    delete W1;
-    delete W2;
     delete Wvring1;
     delete Wvring2;
-    delete IOvring1;
-    delete IOvring2;
     delete IOvrings;
 */
 /*
     //%%%%%%%%%%%%     Fission-Fusion rings    %%%%%%%%%%%%%%%%%%
-    pawan::__wake *W1 = new pawan::__vring(1.0,0.125,2,52,0.1562);
-    pawan::__io *IOvring1 = new pawan::__io("vring2by52_1");
-    pawan::__wake *W2 = new pawan::__vring(1.0,0.125,2,52,0.1562);
-    pawan::__io *IOvring2 = new pawan::__io("vring2by52_2");
+    pawan::__io *IOvring = new pawan::__io("vring2by52");
+    FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
+    int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
+    FILE *fvring = IOvring->open_binary_file(".vringwake");
+    pawan::__wake *Wvringtemp = new pawan::__wake(numparticles, fvring);//temp needed in order to use gsl_*_fread()
+    pawan::__wake *Wvring1 = new pawan::__wake(Wvringtemp);
+    pawan::__wake *Wvring2 = new pawan::__wake(Wvringtemp);
     pawan::__io *IOvrings = new pawan::__io("vring2by52vring2by52fissionfusion_rk4");
 
-    pawan::__interaction *S1 = new pawan::__parallel(W1);
-    pawan::__interaction *S2 = new pawan::__parallel(W2);
-    pawan::__resolve *R = new pawan::__resolve();
-    R->rebuild(S1,IOvring1);printf("resolved ring 1 \n");
-    R->rebuild(S2,IOvring2);printf("resolved ring 1 \n");
-    pawan::__wake *Wvring1 = new pawan::__wake(W1);
-    pawan::__wake *Wvring2 = new pawan::__wake(W2);
-    Wvring1->rotate(1,M_1_PI/6); Wvring2->rotate(1,-M_1_PI/6);
-    double translate_vec[3]={3.0,0.,0.};Wvring2->translate(translate_vec);
-    pawan::__interaction *Svring = new pawan::__parallel(Wvring1,Wvring2);
-    pawan::__integration *INvring = new pawan::__rk4(30,600);
+    Wvring1->rotate(1,-M_PI/6); Wvring2->rotate(1,M_PI/6);
+    double translate_vec1[3]={1.5,0.,0.},translate_vec2[3]={-1.5,0.,0.};
+    Wvring1->translate(translate_vec1);Wvring2->translate(translate_vec2);
+    pawan::__interaction *Svring = new pawan::__interaction(Wvring1,Wvring2);
+    pawan::__integration *INvring = new pawan::gpu_int<>(30,400);
     INvring->integrate(Svring,IOvrings,true);
-    delete Svring;delete INvring;delete R;delete S1;delete S2;delete W1;delete W2;
-    delete Wvring1;delete Wvring2;delete IOvring1;delete IOvring2;delete IOvrings;
+    delete Svring;delete INvring;
+    delete Wvring1;delete Wvring2;delete IOvrings;
 */
 /*
     pawan::__interaction *S = new pawan::__interaction(W1,W2);
@@ -146,46 +124,51 @@ int main(int argc, char* argv[]){
     pawan::__integration *IN = new pawan::__rk4(30,600);
     IN->integrate(S,IO,&networkCommunicatorTest);
 */
+/*        //%%%%%%%%%%%%%%      knot ring     %%%%%%%%%%%%%%%%
+    pawan::__io *IOvring = new pawan::__io("vring0by175");
+    FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
+    int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
+    FILE *fvring = IOvring->open_binary_file(".vringwake");
+    pawan::__wake *Wvringtemp = new pawan::__wake(numparticles, fvring);//temp needed in order to use gsl_*_fread()
+    pawan::__wake *Wvring1 = new pawan::__wake(Wvringtemp);
+    pawan::__wake *Wvring2 = new pawan::__wake(Wvringtemp);
+    pawan::__io *IOvrings = new pawan::__io("vring0by175vring0by175knot_rk4");
 
+    Wvring1->rotate(1,M_PI/2);
+    double translate_vec1[3]={0.0,1.0,0.};
+    Wvring1->translate(translate_vec1);
+    pawan::__interaction *Svring = new pawan::__interaction(Wvring1,Wvring2);
+    //pawan::__interaction *Svring = new pawan::__interaction(Wvring1);
+    pawan::__integration *INvring = new pawan::gpu_int<>(30,1200);
+    INvring->integrate(Svring,IOvrings,true);
+    delete Svring;delete INvring;
+    delete Wvring1;delete Wvring2;delete IOvrings;
+*/
 
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
+    //pawan::__io *IOvring = new pawan::__io("vring3by64");
+    //pawan::__io *IOvring = new pawan::__io("vring2by52");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
     //pawan::__io *IOvring = new pawan::__io("vring4by80");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
     //pawan::__io *IOvring = new pawan::__io("vring5by100");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
     pawan::__io *IOvring = new pawan::__io("vring6by117");
+    //pawan::__io *IOvring = new pawan::__io("vring0by175");
 
-    //pawan::__interaction *S = new pawan::__interaction(W);
-/*    pawan::__interaction *S = new pawan::__parallel(W);
-
-    pawan::__resolve *R = new pawan::__resolve();
-    S->diagnose();//simply calculate diagnostics
-    R->rebuild(S,IOvring);
-    W->print();
-    S->diagnose();
-    S->solve();
-    W->print();
-//  write vring to *.vringwake (this action is only required once)
-    FILE *fvring = IOvring->create_binary_file(".vringwake");
-    W->write(fvring);
-    fclose(fvring);
-    pawan::__wake *Wvring = new pawan::__wake(W);
-    delete R;
-    delete S;
-    delete W;
- */
-
+/*
     FILE *fvringtemp = IOvring->open_binary_file(".vringwake");
     int numparticles;fread(&numparticles,sizeof(size_t),1,fvringtemp);fclose(fvringtemp);
     FILE *fvring = IOvring->open_binary_file(".vringwake");
     pawan::__wake *Wvringtemp = new pawan::__wake(numparticles, fvring);//temp needed in order to use gsl_*_fread()
     pawan::__wake *Wvring = new pawan::__wake(Wvringtemp);
 
-    //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::__parallel(Wvring);
+
+    pawan::__interaction *Svring = new pawan::__interaction(Wvring);
+    //pawan::__interaction *Svring = new pawan::__parallel(Wvring);
     pawan::__integration *INvring = new pawan::gpu_int<>(5, 100);
-    //pawan::__integration *INvring = new pawan::__integration(0.25,5);
+    //pawan::__integration *INvring = new pawan::gpu_int<>(0.025, 1);
+    //pawan::__integration *INvring = new pawan::__integration(0.025,1);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
     INvring->integrate(Svring,IOvring,true);
@@ -194,7 +177,7 @@ int main(int argc, char* argv[]){
     delete Svring;
     delete INvring;
     delete IOvring;
-
+*/
     return EXIT_SUCCESS;
 
 }

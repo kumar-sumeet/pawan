@@ -6,7 +6,7 @@ set(CMAKE_CUDA_COMPILER "/HTOpt/cuda/11.6/bin/nvcc") #neccessary for my specific
 project(PaWAn LANGUAGES CXX CUDA)
 # add the binary tree to the search path for include files
 # so that we will find pawanConfig.h
-
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 include_directories("${PROJECT_BINARY_DIR}/config")
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(src)
@@ -27,10 +27,10 @@ pkg_check_modules( gsl REQUIRED gsl )
 find_package( OpenMP REQUIRED)
 
 # add the executable
-add_executable(pawan src/pawan.cu src/test.cu src/test.cuh)
-target_link_libraries(pawan ${LIB} ${gsl_LIBRARIES})
+add_executable(pawan src/pawan.cu)#src/test.cu src/test.cuh)
+target_link_libraries(pawan ${LIB} ${gsl_LIBRARIES}  ${CMAKE_SOURCE_DIR}/../tecio/teciosrc/bld/libtecio.a)
 
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Ofast -fopenmp -lpthread -L/usr/local/lib -lgsl -lgslcblas -lm -std=c++11")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Ofast -fopenmp -I/../tecio/teciosrc -lpthread  -L/usr/local/lib -lgsl -lgslcblas -lm -std=c++11")
 set(CUDAFLAGS ${CUDAFLAGS} " fopenmp")
 
 # Required standards in C++

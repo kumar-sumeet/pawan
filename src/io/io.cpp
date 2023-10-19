@@ -33,8 +33,16 @@ std::string pawan::__io::getFile(){
 	return (_root + _name);
 }
 
-std::string pawan::__io::getSzlFile(){
+std::string pawan::__io::getSzlWakeFile(){
     return (_root + _name );
+}
+
+std::string pawan::__io::getSzlWakeDivFreeFile(){
+    return (_root + _name + "DivFree" );
+}
+
+std::string pawan::__io::getSzlSolFile(){
+    return (_root + _name + "GridSol");
 }
 
 FILE* pawan::__io::create_binary_file(std::string suffix = ".bin"){

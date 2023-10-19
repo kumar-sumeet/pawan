@@ -127,7 +127,8 @@ __device__ inline void reduction_lindiag(const double4 *particles, const size_t 
                 mySum = getZc(particles,i);
                 break;
             case 4://induced velocity at origin
-                mySum = getVi(particles,i);
+                double3 origin {0,0,0};
+                mySum = getVi(particles[2*i],particles[2*i+1],origin);
                 break;
         }
     }
@@ -147,7 +148,8 @@ __device__ inline void reduction_lindiag(const double4 *particles, const size_t 
                 temp = getZc(particles,i + blockDim.x);
                 break;
             case 4://induced velocity at origin
-                temp = getVi(particles,i + blockDim.x);
+                double3 origin {0,0,0};
+                temp = getVi(particles[2*(i + blockDim.x)],particles[2*(i + blockDim.x)+1],origin);
                 break;
         }
         mySum.x += temp.x;
@@ -266,4 +268,179 @@ __device__ inline void quaddiag(const double4 *particles, const size_t N,
             }
         }
     }
+}
+
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__device__ inline void divfreeomega_contrib_all(const double4 *particles, const size_t N,
+                                              const double4 &position, const size_t index,
+                                              double3 &divfreeomega_p) {
+    __shared__ double4 sharedParticles[2 * threadBlockSize];
+
+    //complete tiles
+    size_t fullIters = N/threadBlockSize;
+    size_t loadPos = threadIdx.x;
+    for(int i = 0; i < fullIters; i++, loadPos += threadBlockSize){
+        //load particle into shared memory to be reused by the whole threadblock
+        sharedParticles[2 * threadIdx.x] = particles[2 * loadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * loadPos + 1];
+
+        __syncthreads();
+
+        //calculate interaction with every particle in the shared memory
+        if(index < N) {
+#pragma unroll unrollFactor
+            for(int j = 0; j < threadBlockSize; j++){
+
+                if(! (blockIdx.x == i && threadIdx.x == j) ) //skip self-interaction
+                    DIVFREEOMEGA_GPU(position, sharedParticles[2 * j], sharedParticles[2 * j + 1], divfreeomega_p);
+            }
+        }
+
+        __syncthreads();
+    }
+
+    //separate treatment of last tile since it may be incomplete
+    if(loadPos < N) {
+        sharedParticles[2 * threadIdx.x] = particles[2 * loadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * loadPos + 1];
+    }
+    __syncthreads();
+
+    if(index < N) {
+        //finish incomplete tile
+        size_t remainingParticles = N % threadBlockSize;
+#pragma unroll unrollFactor
+        for (int j = 0; j < remainingParticles; j++) {
+
+            if(! (blockIdx.x == fullIters && threadIdx.x == j) ) //skip self-interaction
+                DIVFREEOMEGA_GPU(position, sharedParticles[2 * j], sharedParticles[2 * j + 1], divfreeomega_p);
+        }
+    }
+}
+
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__device__ inline void gridSol_contrib_all(const double4 *particles,
+                                           const size_t Npart,
+                                           const double3 &nodePos,
+                                           double3 &nodeVel,
+                                           double3 &nodeVor) {
+    __shared__ double4 sharedParticles[2 * threadBlockSize];
+
+    size_t fullIters = Npart/threadBlockSize;
+    size_t partLoadPos = threadIdx.x;
+
+    for(int i = 0; i < fullIters; i++, partLoadPos += threadBlockSize){
+        sharedParticles[2 * threadIdx.x] = particles[2 * partLoadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * partLoadPos + 1];
+
+        __syncthreads();
+
+        #pragma unroll unrollFactor
+        for (int j = 0; j < threadBlockSize; j++) {
+            GRIDSOL_GPU(nodePos, sharedParticles[2 * j], sharedParticles[2 * j + 1], nodeVel, nodeVor);
+        }
+        __syncthreads();
+    }
+
+    if(partLoadPos < Npart) {
+        sharedParticles[2 * threadIdx.x] = particles[2 * partLoadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * partLoadPos + 1];
+    }
+
+    __syncthreads();
+
+    size_t remainingParticles = Npart % threadBlockSize;
+    #pragma unroll unrollFactor
+    for (int j = 0; j < remainingParticles; j++) {
+        GRIDSOL_GPU(nodePos, sharedParticles[2 * j], sharedParticles[2 * j + 1], nodeVel, nodeVor);
+    }
+}
+
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__device__ inline void inflow_contrib_all(const double4 *particles,
+                                           const size_t Npart,
+                                           const double3 &airStaPos,
+                                           double3 &airStaVel) {
+    __shared__ double4 sharedParticles[2 * threadBlockSize];
+
+    size_t fullIters = Npart/threadBlockSize;
+    size_t partLoadPos = threadIdx.x;
+
+    for(int i = 0; i < fullIters; i++, partLoadPos += threadBlockSize){
+        sharedParticles[2 * threadIdx.x] = particles[2 * partLoadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * partLoadPos + 1];
+        __syncthreads();
+
+        #pragma unroll unrollFactor
+        for (int j = 0; j < threadBlockSize; j++) {
+            getVi(sharedParticles[2 * j], sharedParticles[2 * j + 1], airStaPos, airStaVel);
+        }
+        __syncthreads();
+    }
+
+    if(partLoadPos < Npart) {
+        sharedParticles[2 * threadIdx.x] = particles[2 * partLoadPos];
+        sharedParticles[2 * threadIdx.x + 1] = particles[2 * partLoadPos + 1];
+    }
+
+    __syncthreads();
+
+    size_t remainingParticles = Npart % threadBlockSize;
+    #pragma unroll unrollFactor
+    for (int j = 0; j < remainingParticles; j++) {
+        getVi(sharedParticles[2 * j], sharedParticles[2 * j + 1], airStaPos, airStaVel);
+    }
+    printf("tid = %d , airstapos = %+10.5e, %+10.5e, %+10.5e----->  lambda = %+10.5e, %+10.5e, %+10.5e \n",
+           blockIdx.x * blockDim.x + threadIdx.x,airStaPos.x,airStaPos.y,airStaPos.z,
+           airStaVel.x,airStaVel.y,airStaVel.z);
+
+}
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__device__ inline void inflow_red(const double4 *particles,
+                                  const size_t numparticles,
+                                  const double3 airStaPos,
+                                  double *lambda_airsta) {
+
+    // Handle to thread block group
+    cg::thread_block cta = cg::this_thread_block();
+    extern __shared__ double3 reddata[];
+
+    // perform first level of reduction,
+    // reading from global memory, writing to shared memory
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * (blockDim.x * 2) + threadIdx.x;
+
+    double3 mySum={0.0,0.0,0.0};
+    double3 temp={0.0,0.0,0.0};
+    if(i < numparticles)
+        mySum = getVi(particles[2*i],particles[2*i+1],airStaPos);
+
+    if (i + blockDim.x < numparticles){
+        temp = getVi(particles[2*(i + blockDim.x)],particles[2*(i + blockDim.x)+1],airStaPos);
+        mySum.x += temp.x;
+        mySum.y += temp.y;
+        mySum.z += temp.z;
+    }
+
+    reddata[tid] = mySum;
+    cg::sync(cta);
+
+    // do reduction in shared mem
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s) {
+            reddata[tid].x = mySum.x = mySum.x + reddata[tid + s].x;
+            reddata[tid].y = mySum.y = mySum.y + reddata[tid + s].y;
+            reddata[tid].z = mySum.z = mySum.z + reddata[tid + s].z;
+        }
+
+        cg::sync(cta);
+    }
+
+    // write result for this block to global mem
+    if (tid == 0){
+        atomicAdd(lambda_airsta,mySum.x);
+        atomicAdd(lambda_airsta+1,mySum.y);
+        atomicAdd(lambda_airsta+2,mySum.z);
+    }
+
 }
