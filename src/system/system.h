@@ -91,8 +91,9 @@ class __system{
 
 
 
-        //! add relaxation to wake system
-        virtual void relax(size_t &stepnum){};
+        //! remesh the wake system
+        virtual void split(size_t &stepnum){};
+        virtual void merge(size_t &stepnum){};
         //! add new particles
         virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){};
        //! translate particles with Vinf

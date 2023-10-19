@@ -19,7 +19,7 @@
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#define MAXNUMPARTICLES 50000 //max particles per wake
+#define MAXNUMPARTICLES 150000 //max particles per wake
 
 namespace pawan{
 
@@ -83,8 +83,6 @@ class __wake{
         virtual void split(size_t &stepnum);
         //! merge particles in wake
         virtual void merge(size_t &stepnum);
-        //! add relaxation to wake
-        virtual void relax(size_t &stepnum);
         virtual void getlfnvec(double* vec,const double* mat,const int rowsize,const int axis,const int offset, const int size);
         //!Adds vortex particles as the Dymore coupling progresses
         virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);

@@ -10,7 +10,7 @@
 
 pawan::__interaction::__interaction(){
     DOUT("--------------------------------in pawan::__interaction::__interaction()");
-	//_nu = 2.0e-2;
+    //_nu = 5.0e-3;   //vring fission-fusion
 	//_nu = 2.5e-3;   //vring
     _nu = 1.56e-5;    //coupling
     //_nu = 0.0;
@@ -396,10 +396,18 @@ void pawan::__interaction::getStates(gsl_vector *state){
 	}
 }
 
-void pawan::__interaction::relax(size_t &stepnum){
+void pawan::__interaction::split(size_t &stepnum){
     size_t offset = 0;
     for(auto &w: _W){
-        w->relax(stepnum);
+        w->split(stepnum);
+        offset += w->_maxsize;
+    }
+}
+
+void pawan::__interaction::merge(size_t &stepnum){
+    size_t offset = 0;
+    for(auto &w: _W){
+        w->merge(stepnum);
         offset += w->_maxsize;
     }
 }
@@ -452,7 +460,9 @@ void pawan::__interaction::getInflow(PawanRecvData pawanrecvdata, PawanSendData 
             for (size_t k = 0; k < 3; ++k) {
                 lambda[astidx*3 + k] = gsl_vector_get(vbi, k);
             }
-            printf("lambda = %+10.5e, %+10.5e, %+10.5e \n",lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2]);
+            printf("---> lambda = %+10.5e, %+10.5e, %+10.5e @ast = %+10.5e, %+10.5e, %+10.5e  \n",
+                   lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2],
+                   astpos[astidx*3],astpos[astidx*3 + 1],astpos[astidx*3 + 2]);
             astidx++;
             gsl_vector_free(vbi);
             gsl_vector_free(rast);
@@ -473,7 +483,7 @@ void pawan::__interaction::getInflow(PawanRecvData pawanrecvdata, PawanSendData 
     gsl_vector_set_zero(vi);
     getVi(r,vi,0);
     printf("Vi at point 2 = %10.5e, %10.5e, %10.5e \n",gsl_vector_get(vi,0),gsl_vector_get(vi,1),gsl_vector_get(vi,2));
-    gsl_vector_set(r,0,-5.0);gsl_vector_set(r,1,0.8);gsl_vector_set(r,2,0.02);
+    gsl_vector_set(r,0,0.0);gsl_vector_set(r,1,1.6);gsl_vector_set(r,2,0.0);
     gsl_vector_set_zero(vi);
     getVi(r,vi,0);
     printf("Vi at point 3 = %10.5e, %10.5e, %10.5e \n",gsl_vector_get(vi,0),gsl_vector_get(vi,1),gsl_vector_get(vi,2));
@@ -499,7 +509,7 @@ void pawan::__interaction::getVi(const gsl_vector *r, gsl_vector *vi, const size
                 //printf("q = %10.5e \t",q);
             // Velocity computation
             gsl_vector *dv = gsl_vector_calloc(3);
-            VELOCITY(q, &ivor.vector, displacement, dv);
+            VELOCITY(-q, &ivor.vector, displacement, dv);
             gsl_vector_add(vi, dv);
 
             gsl_vector_free(displacement);
@@ -813,7 +823,7 @@ void pawan::__interaction::getParticles_arr(double *p){
 
 }
 
-int pawan::__interaction::amountParticles() {
+    int pawan::__interaction::amountParticles() {
     int total = 0;
     for(auto const w : _W){
         total += w->_numParticles;
