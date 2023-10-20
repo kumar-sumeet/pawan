@@ -27,7 +27,7 @@ pkg_check_modules( gsl REQUIRED gsl )
 find_package( OpenMP REQUIRED)
 
 # add the executable
-add_executable(pawan src/pawan.cu)#src/test.cu src/test.cuh)
+add_executable(pawan src/pawan.cu)
 target_link_libraries(pawan ${LIB} ${gsl_LIBRARIES}  ${CMAKE_SOURCE_DIR}/../tecio/teciosrc/bld/libtecio.a)
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-Ofast -fopenmp -I/../tecio/teciosrc -lpthread  -L/usr/local/lib -lgsl -lgslcblas -lm -std=c++11")
