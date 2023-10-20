@@ -2,9 +2,9 @@
 #define PAWAN_NETWORKDATASTRUCTURE_H
 
 #include <iostream>
-#define PAWAN_MAXLFNLINES  4    //assuming only one rotor or wing entity
+#define PAWAN_MAXLFNLINES  8    //assuming only one rotor or wing entity
                                 //(formulation not guaranteed to work with more than 1 rotors or rotor+wing)
-#define PAWAN_MAXAST       200  //per lfnline
+#define PAWAN_MAXAST       100  //per lfnline
 #define W_NAME 128
 
 typedef enum pawancinttype { //circ interpolation type

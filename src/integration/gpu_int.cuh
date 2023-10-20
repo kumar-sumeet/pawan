@@ -538,7 +538,7 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
         int transient_steps = opawanrecvdata.transientsteps;
         if (stepnum < transient_steps) {
             printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
-            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 15 * (transient_steps - stepnum) / transient_steps;
+            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 35 * (transient_steps - stepnum) / transient_steps;
             printf("Vinf + suppress = %3.2e, %3.2e, %3.2e", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1],
                    opawanrecvdata.Vinf[2]);
         }
@@ -587,9 +587,8 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
                 opawansenddata.lambda[astidx * 3    ] = lambda[astidx * 3    ];  //comment this for elliptical wing case
                 opawansenddata.lambda[astidx * 3 + 1] = lambda[astidx * 3 + 1];
                 opawansenddata.lambda[astidx * 3 + 2] = lambda[astidx * 3 + 2];
-                printf("lambda = %+10.5e, %+10.5e, %+10.5e, airstapos = %+10.5e, %+10.5e, %+10.5e, \n",
-                       lambda[astidx * 3], lambda[astidx * 3 + 1], lambda[astidx * 3 + 2],
-                       astpos[astidx * 3], astpos[astidx * 3 + 1], astpos[astidx * 3 + 2]);
+                printf("lambda = %+10.5e, %+10.5e, %+10.5e \n",
+                       lambda[astidx * 3], lambda[astidx * 3 + 1], lambda[astidx * 3 + 2]);
                 astidx++;
             }
         }
