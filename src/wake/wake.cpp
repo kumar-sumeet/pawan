@@ -170,7 +170,7 @@ void pawan::__wake::getlfnvec(double* vec,
     }
 }
 
-void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
+void pawan::__wake::addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum){
     OUT("_numParticles",_numParticles);
     OUT("_npidx",_npidx);
     double *Vinf = pawanrecvdata->Vinf;
@@ -491,6 +491,274 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                             _numParticles = _npidx;
                     }
                 }
+            }
+        }
+        gsl_spline_free(circ_spline);gsl_spline_free(circprev_spline);
+        gsl_spline_free(TEposx_spline);gsl_spline_free(TEposy_spline);gsl_spline_free(TEposz_spline);
+        gsl_spline_free(TEposxprev_spline);gsl_spline_free(TEposyprev_spline);gsl_spline_free(TEposzprev_spline);
+        gsl_spline_free(astposx_spline);gsl_spline_free(astposy_spline);gsl_spline_free(astposz_spline);
+        gsl_interp_accel_free(accel_ptr);
+        free(TEposx_lfn);free(TEposy_lfn);free(TEposz_lfn);
+        free(TEposxprev_lfn);free(TEposyprev_lfn);free(TEposzprev_lfn);
+        free(circ_lfn);free(circprev_lfn);free(spandisc_lfn);
+        free(astposx_lfn);free(astposy_lfn);free(astposz_lfn);
+        free(astvelx_lfn);free(astvely_lfn);free(astvelz_lfn);
+    }
+    _size = 2*_numParticles*3;
+}
+void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
+    OUT("_numParticles",_numParticles);
+    OUT("_npidx",_npidx);
+    double *Vinf = pawanrecvdata->Vinf;
+    int NbOfLfnLines = pawanrecvdata->NbOfLfnLines;
+    int *NbOfAst = pawanrecvdata->NbOfAst;
+    double *lfnlen = pawanrecvdata->lfnlen;
+    int trailvor = pawanrecvdata->trailvor;
+    int shedvor = pawanrecvdata->shedvor;
+    int suprootvor = pawanrecvdata->suprootvor;
+    int transientsteps = pawanrecvdata->transientsteps;
+    int infl2D = pawanrecvdata->infl2D;
+    //int spanres = pawanrecvdata->spanres;
+    int spanres = 10;  //number of particles over the span of a lfnline
+    double acrossa = pawanrecvdata->acrossa;
+    double deltat = pawanrecvdata->deltat;
+    double *spandisc = pawanrecvdata->span_disc;
+    double *TEpos = pawanrecvdata->TEpos;
+    double *circ = pawanrecvdata->circ;
+    double *TEpos_prev = pawanrecvdata->TEpos_prev;
+    double *circ_prev = pawanrecvdata->circ_prev;
+    double *astpos = pawanrecvdata->astpos;
+    double *astvel = pawanrecvdata->astvel;
+
+    double Vinfmag = sqrt(Vinf[0]*Vinf[0] + Vinf[1]*Vinf[1] + Vinf[2]*Vinf[2]);
+    int astidx = 0;
+    int offsetrows=0;
+    int sectidx = 0; //index of section where particles originate (varies on lfnline from 0 to spanres; spanres+1 sections)
+    int iast_peakcirc_lfn;
+    double peakcirc_lfn, spandisc_peakcirc_lfn;
+    double sigma, hres, alphai_trail, trailvormag;
+    bool dontaddTEpart;
+    double tepos[3],teposprev[3], lastpart[3]; // _, _, coordinates of last particle to emanate from a section ista
+    double del_teposmag, vx, vy, vz, vmag, voli;
+    double localflowdir[3], vorpos[3];  //need more astkin details to get localflowdir accurately for blades
+    int num_part; //
+    double shedvorpos[3],shedvordir[3],shedvormag,shedvordirmag, alphai_shed;
+    double teposnxt[3], teposprevnxt[3], tepos_shed[3],teposprev_shed[3];
+    double lastpart_shed[3]; //coordinates of last particle to emanate between ista and ista + 1
+    double alphai, vorticity_net[3];
+    for(size_t ilfn = 0; ilfn<NbOfLfnLines; ++ilfn) {
+
+        double *TEposx_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *TEposy_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *TEposz_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(TEposx_lfn, TEpos, 3, 0, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(TEposy_lfn, TEpos, 3, 1, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(TEposz_lfn, TEpos, 3, 2, offsetrows, NbOfAst[ilfn]);
+        double *TEposxprev_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *TEposyprev_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *TEposzprev_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(TEposxprev_lfn, TEpos_prev, 3, 0, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(TEposyprev_lfn, TEpos_prev, 3, 1, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(TEposzprev_lfn, TEpos_prev, 3, 2, offsetrows, NbOfAst[ilfn]);
+        double *circ_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(circ_lfn, circ, 1, 0, offsetrows, NbOfAst[ilfn]);
+        double *circprev_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(circprev_lfn, circ_prev, 1, 0, offsetrows, NbOfAst[ilfn]);
+        double *astposx_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *astposy_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *astposz_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(astposx_lfn, astpos, 3, 0, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(astposy_lfn, astpos, 3, 1, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(astposz_lfn, astpos, 3, 2, offsetrows, NbOfAst[ilfn]);
+        double *astvelx_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *astvely_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        double *astvelz_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(astvelx_lfn, astvel, 3, 0, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(astvely_lfn, astvel, 3, 1, offsetrows, NbOfAst[ilfn]);
+        getlfnvec(astvelz_lfn, astvel, 3, 2, offsetrows, NbOfAst[ilfn]);
+        double *spandisc_lfn = (double *) calloc(NbOfAst[ilfn], sizeof(double));
+        getlfnvec(spandisc_lfn, spandisc, 1, 0, offsetrows, NbOfAst[ilfn]);
+        offsetrows += NbOfAst[ilfn];//also just astidx can be used
+
+        gsl_interp_accel *accel_ptr;
+        gsl_spline *circ_spline, *TEposx_spline, *TEposy_spline, *TEposz_spline;
+        gsl_spline *circprev_spline, *TEposxprev_spline, *TEposyprev_spline, *TEposzprev_spline;
+        gsl_spline *astposx_spline, *astposy_spline, *astposz_spline;
+        gsl_spline *astvelx_spline, *astvely_spline, *astvelz_spline;
+        accel_ptr = gsl_interp_accel_alloc();
+        circ_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposx_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposy_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposz_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        circprev_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposxprev_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposyprev_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        TEposzprev_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astposx_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astposy_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astposz_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astvelx_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astvely_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        astvelz_spline = gsl_spline_alloc(gsl_interp_cspline, NbOfAst[ilfn]);
+        gsl_spline_init(circ_spline, spandisc_lfn, circ_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposx_spline, spandisc_lfn, TEposx_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposy_spline, spandisc_lfn, TEposy_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposz_spline, spandisc_lfn, TEposz_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(circprev_spline, spandisc_lfn, circprev_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposxprev_spline, spandisc_lfn, TEposxprev_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposyprev_spline, spandisc_lfn, TEposyprev_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(TEposzprev_spline, spandisc_lfn, TEposzprev_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astposx_spline, spandisc_lfn, astposx_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astposy_spline, spandisc_lfn, astposy_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astposz_spline, spandisc_lfn, astposz_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astvelx_spline, spandisc_lfn, astvelx_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astvely_spline, spandisc_lfn, astvely_lfn, NbOfAst[ilfn]);
+        gsl_spline_init(astvelz_spline, spandisc_lfn, astvelz_lfn, NbOfAst[ilfn]);
+
+        //get peak circulation and index
+        iast_peakcirc_lfn = 0;          //airsta index where peak circulation occurs
+        peakcirc_lfn = circ_lfn[0];  //peak lfnline circulation
+        spandisc_peakcirc_lfn = 0.0; //non-dim radius where peak circ occurs
+        for (int i = 1; i < NbOfAst[ilfn]; i++) {
+            if (circ[i] > peakcirc_lfn) {
+                peakcirc_lfn = circ_lfn[i];
+                iast_peakcirc_lfn = i;
+                spandisc_peakcirc_lfn = spandisc_lfn[i];
+            }
+        }
+
+        hres = lfnlen[ilfn] / spanres;
+        sigma = 1.3 * hres;
+
+        for (int ista = 0; ista < spanres + 1; ++ista) {//new discretized station index
+            sectidx = ilfn * (spanres + 1) + ista;
+            dontaddTEpart = true;  //whether to add particles right at the TE
+
+            tepos[0] = gsl_spline_eval(TEposx_spline, ista * (1. / spanres), accel_ptr);
+            tepos[1] = gsl_spline_eval(TEposy_spline, ista * (1. / spanres), accel_ptr);
+            tepos[2] = gsl_spline_eval(TEposz_spline, ista * (1. / spanres), accel_ptr);
+
+            teposprev[0] = gsl_spline_eval(TEposxprev_spline, ista * (1. / spanres), accel_ptr);
+            teposprev[1] = gsl_spline_eval(TEposyprev_spline, ista * (1. / spanres), accel_ptr);
+            teposprev[2] = gsl_spline_eval(TEposzprev_spline, ista * (1. / spanres), accel_ptr);
+
+            if (stepnum == 0) {
+                gsl_matrix_set(_initTEpos, sectidx, 0, teposprev[0]);
+                gsl_matrix_set(_initTEpos, sectidx, 1, teposprev[1]);
+                gsl_matrix_set(_initTEpos, sectidx, 2, teposprev[2]);
+                dontaddTEpart = false; //add particle right at the TE only for the first time step
+            }
+            if (gsl_vector_get(_lastsectpartnpidx, sectidx)!=DBL_MAX) {
+                lastpart[0] = gsl_matrix_get(_position, gsl_vector_get(_lastsectpartnpidx, sectidx), 0);
+                lastpart[1] = gsl_matrix_get(_position, gsl_vector_get(_lastsectpartnpidx, sectidx), 1);
+                lastpart[2] = gsl_matrix_get(_position, gsl_vector_get(_lastsectpartnpidx, sectidx), 2);
+            }
+            else{
+                lastpart[0] = gsl_matrix_get(_initTEpos, sectidx, 0);
+                lastpart[1] = gsl_matrix_get(_initTEpos, sectidx, 1);
+                lastpart[2] = gsl_matrix_get(_initTEpos, sectidx, 2);
+            }
+            del_teposmag = sqrt(pow(tepos[0]-(lastpart[0]),2)
+                              + pow(tepos[1]-(lastpart[1]),2)
+                              + pow(tepos[2]-(lastpart[2]),2));
+
+            vx = gsl_spline_eval(astvelx_spline, ista * (1. / spanres), accel_ptr);
+            vy = gsl_spline_eval(astvely_spline, ista * (1. / spanres), accel_ptr);
+            vz = gsl_spline_eval(astvelz_spline, ista * (1. / spanres), accel_ptr);
+            vmag = sqrt(vx * vx + vy * vy + vz * vz);
+
+            localflowdir[0] = vx / vmag;
+            localflowdir[1] = vy / vmag;
+            localflowdir[2] = vz / vmag;
+
+            //assuming only a single peak in the circulation distribution for now
+            //magnitude and sign of trail vortices
+            if ((double) ista / spanres <= spandisc_peakcirc_lfn && ista != 0)
+                trailvormag = -(gsl_spline_eval(circ_spline, ista * (1. / spanres), accel_ptr)
+                                - gsl_spline_eval(circ_spline, (ista - 1) * (1. / spanres), accel_ptr));
+            else if ((double) ista / spanres > spandisc_peakcirc_lfn && ista != spanres)
+                trailvormag = gsl_spline_eval(circ_spline, ista * (1. / spanres), accel_ptr)
+                              - gsl_spline_eval(circ_spline, (ista + 1) * (1. / spanres), accel_ptr);
+
+            if (ista == 0)
+                trailvormag = -circ_lfn[0];//if beginning (from root) of a new lfnline
+            //clockwise vortex when looking from behind is -ve
+            if (ista == spanres)
+                trailvormag = circ_lfn[NbOfAst[ilfn] - 1];//last airstation gives anticlockwise vortex
+            //anticlockwise vortex is +ve
+
+            alphai_trail = 0.0;
+            if (suprootvor) {//suppressing effect of root vortices (avoid fountain effect in hover)
+                if (ista < 0.15 * (spanres + 1)) {
+                    if (stepnum < transientsteps)
+                        //    alphai = trailvormag * hres * stepnum / transientsteps;
+                        alphai_trail = trailvormag * hres *(transientsteps - stepnum) / transientsteps;
+                        //alphai = trailvormag*hres* ista/(0.2*(spanres + 1));
+                        //alphai_trail = trailvormag * hres * 0.1;
+                    else
+                        alphai_trail = trailvormag * hres;
+                } else
+                    alphai_trail = trailvormag * hres;
+            } else
+                alphai_trail = trailvormag * hres;
+
+            voli = 0.05 * hres;   //ip: not entirely sure about this (is this an empirical parameter??)
+            for (int k = 0; k < 3; ++k)
+                vorticity_net[k] = trailvor * localflowdir[k] * alphai_trail;
+            if (shedvor) {
+                if (ista != spanres) {//shed vortex only between airsta
+                                        shedvordir[0] = gsl_spline_eval(astposx_spline, ista * (1. / spanres), accel_ptr)
+                                                        - gsl_spline_eval(astposx_spline, (ista + 1) * (1. / spanres), accel_ptr);
+                                        shedvordir[1] = gsl_spline_eval(astposy_spline, ista * (1. / spanres), accel_ptr)
+                                                        - gsl_spline_eval(astposy_spline, (ista + 1) * (1. / spanres), accel_ptr);
+                                        shedvordir[2] = gsl_spline_eval(astposz_spline, ista * (1. / spanres), accel_ptr)
+                                                        - gsl_spline_eval(astposz_spline, (ista + 1) * (1. / spanres), accel_ptr);
+                                        shedvordirmag = sqrt(shedvordir[0] * shedvordir[0] + shedvordir[1] * shedvordir[1] +
+                                                             shedvordir[2] * shedvordir[2]);
+                }
+                //for the tip, the same wing TE direction is assumed
+                shedvormag = gsl_spline_eval(circ_spline, ista * (1. / spanres), accel_ptr)
+                             - gsl_spline_eval(circprev_spline, ista * (1. / spanres), accel_ptr);
+                alphai_shed = shedvormag * hres;
+                for (int k = 0; k < 3; ++k)
+                    vorticity_net[k] += shedvor * shedvordir[k] * alphai_shed / shedvordirmag;
+            }
+            alphai = sqrt(vorticity_net[0]*vorticity_net[0] + vorticity_net[1]*vorticity_net[1] +vorticity_net[2]*vorticity_net[2]);
+
+            num_part = (int) (del_teposmag / hres);  //number of particles behind each ista
+            for (int jsta = int(dontaddTEpart); jsta <= num_part; ++jsta) {
+                //evaluate trailing vortex parameters corresponding to a airsta
+                if (del_teposmag != 0.0) {//in case lfnline is moving in inertial frame
+                    vorpos[0] = lastpart[0] + jsta * (tepos[0] - (lastpart[0])) / (del_teposmag / hres);
+                    vorpos[1] = lastpart[1] + jsta * (tepos[1] - (lastpart[1])) / (del_teposmag / hres);
+                    vorpos[2] = lastpart[2] + jsta * (tepos[2] - (lastpart[2])) / (del_teposmag / hres);
+                } else {//only stepnum=0 in case lfnline is stationary in inertial frame
+                    //particles added at TE; thereafter del_teposmag !=0.0, particles added between last section particle and TE
+                    vorpos[0] = lastpart[0];
+                    vorpos[1] = lastpart[1];
+                    vorpos[2] = lastpart[2];
+                }
+                for (int k = 0; k < 3; ++k) {
+                    gsl_matrix_set(_position, _npidx, k, vorpos[k]);
+                    gsl_matrix_set(_vorticity, _npidx, k, vorticity_net[k]);
+                    gsl_matrix_set(_vorticityfield, _npidx, k, 0.0); //later
+                }
+                gsl_vector_set(_radius, _npidx, sigma);
+                gsl_vector_set(_volume, _npidx, voli);
+                gsl_vector_set(_birthstrength, _npidx, alphai);
+                gsl_vector_set(_active, _npidx, stepnum);//unsused for now
+                gsl_vector_set(_lastsectpartnpidx, sectidx, _npidx);
+                if (_npidx == 0)
+                    printf("First particle created at : %8.3e, %8.3e, %8.3e \n", vorpos[0], vorpos[1],
+                           vorpos[2]);
+                _npidx++;
+                if (_npidx == MAXNUMPARTICLES) {
+                    _npidx = 0;
+                    _numParticles = MAXNUMPARTICLES;
+                    _maxmem = true;
+                }
+                if (!_maxmem)
+                    _numParticles = _npidx;
             }
         }
         gsl_spline_free(circ_spline);gsl_spline_free(circprev_spline);

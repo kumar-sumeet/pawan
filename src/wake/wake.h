@@ -85,6 +85,7 @@ class __wake{
         virtual void merge(size_t &stepnum);
         virtual void getlfnvec(double* vec,const double* mat,const int rowsize,const int axis,const int offset, const int size);
         //!Adds vortex particles as the Dymore coupling progresses
+        virtual void addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum);
         virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
         //! translate particles with Vinf
         virtual void updateVinfEffect(const double *Vinf, double &dt);
