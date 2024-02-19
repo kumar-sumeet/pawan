@@ -305,6 +305,15 @@ void pawan::__interaction::write(FILE *f){
     DOUT("--------------------------------in pawan::__interaction::write(FILE *f)");
 	fwrite(&_nWake,sizeof(size_t),1,f);
 
+    auto& wake = *_W.front();
+    for (auto particle_index = 0; particle_index < wake._numParticles; ++particle_index)
+    {
+        std::printf("[%d] % .2f % .2f % .2f\n", particle_index,
+            gsl_matrix_get(wake._position, particle_index, 0),
+            gsl_matrix_get(wake._position, particle_index, 1),
+            gsl_matrix_get(wake._position, particle_index, 2));
+    }
+
     int write = 1;
 	for(auto &w: _W){
 	    if (write){ //max particles same for all wake, write only once

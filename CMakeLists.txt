@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.2)
-project(PaWAn LANGUAGES CXX)
+project(PaWAn LANGUAGES CXX CUDA)
 # add the binary tree to the search path for include files
 # so that we will find pawanConfig.h
 

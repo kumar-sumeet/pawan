@@ -5,34 +5,36 @@
  * @date 03/28/2021
  */
 
-#include <iostream>
+#include <array>
 #include <iomanip> // Required for set precision
+#include <iostream>
 
-
-#include "utils/print_utils.h"
 #include "io/io.h"
-#include "wake/wake.h"
+#include "src/integration/integration.h"
+#include "src/integration/rk4.h"
+#include "src/interaction/bnh.h"
+#include "src/interaction/interaction.h"
+#include "src/interaction/parallel.h"
+#include "src/networkinterface/networkdatastructures.h"
+#include "src/networkinterface/networkinterface.cpp" //templates included this way
+#include "src/networkinterface/networkinterface.h"
+#include "src/resolve/resolve.h"
+#include "utils/print_utils.h"
 #include "wake/ring.h"
 #include "wake/square.h"
 #include "wake/vring.h"
-#include "src/interaction/interaction.h"
-#include "src/interaction/parallel.h"
-#include "src/integration/integration.h"
-#include "src/resolve/resolve.h"
-#include "src/integration/rk4.h"
-#include "src/networkinterface/networkdatastructures.h"
-#include "src/networkinterface/networkinterface.h"
-#include "src/networkinterface/networkinterface.cpp" //templates included this way
+#include "wake/wake.h"
 
 #define OUTPUTIP "127.0.0.1"
 #define NETWORKBUFFERSIZE 50
 #define PORT 8899
 
-int main(int argc, char* argv[]){
-
+int main(int argc, char* argv[])
+{
     std::cout << std::setprecision(16) << std::scientific;
     PAWAN();
 
+/*
     //%%%%%%%%%%%%     Dymore coupling    %%%%%%%%%%%%%%%%%%
     NetworkInterfaceTCP<OPawanRecvData,OPawanSendData>
             networkCommunicatorTest(PORT, OUTPUTIP, PORT, NETWORKBUFFERSIZE, true);
@@ -50,6 +52,7 @@ int main(int argc, char* argv[]){
     delete IN;
     delete S;
     delete IOdym;
+*/
 
 
 /*    //%%%%%%%%%%%%     Fusion rings    %%%%%%%%%%%%%%%%%%
@@ -150,34 +153,34 @@ int main(int argc, char* argv[]){
 
 /*
     //%%%%%%%%%%%%%%      isolated ring     %%%%%%%%%%%%%%%%
-    pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
-    pawan::__io *IOvring = new pawan::__io("vring4by80_euler");
+    //pawan::__wake *W = new pawan::__vring(1.0,0.1,4,80,0.1);
+    //pawan::__io *IOvring = new pawan::__io("vring4by80_euler");
     //pawan::__wake *W = new pawan::__vring(1.0,0.1,5,100,0.0840);
     //pawan::__io *IOvring = new pawan::__io("vring_5by100");
-    //pawan::__wake *W = new pawan::__vring(1.0,0.1,6,117,0.0735);
-    //pawan::__io *IOvring = new pawan::__io("vring_6by117");
+    pawan::__wake *W = new pawan::__ring(1.0,50,5,10000);
+    pawan::__io *IOvring = new pawan::__io();
 
     //pawan::__interaction *S = new pawan::__interaction(W);
-    pawan::__interaction *S = new pawan::__parallel(W);
+    //pawan::__interaction *S = new pawan::__parallel(W);
 
-    pawan::__resolve *R = new pawan::__resolve();
-    S->diagnose();//simply calculate diagnostics
-    R->rebuild(S,IOvring);
-    W->print();
-    S->diagnose();
-    S->solve();
-    W->print();
+    //pawan::__resolve *R = new pawan::__resolve();
+    //S->diagnose();//simply calculate diagnostics
+    //R->rebuild(S,IOvring);
+    //W->print();
+    //S->diagnose();
+    //S->solve();
+    //W->print();
 
     pawan::__wake *Wvring = new pawan::__wake(W);
     //pawan::__interaction *Svring = new pawan::__interaction(Wvring);
-    pawan::__interaction *Svring = new pawan::__parallel(Wvring);
-    pawan::__integration *INvring = new pawan::__integration(5,100);
+    pawan::__interaction *Svring = new pawan::__bnh(Wvring, 0);
+    pawan::__integration *INvring = new pawan::__integration(5,10);
     //pawan::__integration *INvring = new pawan::__rk4(5,100);
 
     INvring->integrate(Svring,IOvring,true);
 
-    delete R;
-    delete S;
+    //delete R;
+    //delete S;
     delete W;
     delete Wvring;
     delete Svring;
@@ -186,4 +189,50 @@ int main(int argc, char* argv[]){
 
     return EXIT_SUCCESS;
 */
+
+    constexpr auto theta = 0;
+    constexpr auto step_count = 5;
+
+    class test_wake : public pawan::__wake
+    {
+    public:
+        explicit test_wake()
+        {
+            static constexpr std::size_t particle_count{10};
+            static constexpr std::array<std::array<double, 3>, particle_count> particle_positions{
+                std::array<double, 3>{-5,  3,  5},
+                std::array<double, 3>{-4, -4,  2},
+                std::array<double, 3>{-4, -2,  3},
+                std::array<double, 3>{-3, -3, -5},
+                std::array<double, 3>{ 1, -5,  2},
+                std::array<double, 3>{ 1,  0,  5},
+                std::array<double, 3>{ 2,  1, -4},
+                std::array<double, 3>{ 2,  3, -1},
+                std::array<double, 3>{ 4,  3,  0},
+                std::array<double, 3>{ 5,  5,  1}};
+
+            create_particles(particle_count);
+
+            for (int i = 0; i < _numParticles; ++i)
+            {
+                for (int j = 0; j < 3; ++j)
+                {
+                    gsl_matrix_set(_position, i, j, particle_positions[i][j]);
+                    gsl_matrix_set(_vorticity, i, j, 100.0);
+                    gsl_matrix_set(_vorticityfield, i, j, 100.0);
+                }
+                gsl_vector_set(_radius, i, 1.0);
+                gsl_vector_set(_volume, i, 1.0);
+                gsl_vector_set(_birthstrength, i, 1.0);
+            }
+        }
+    } wake;
+
+    //pawan::__bnh interaction(&wake, interaction_theta);
+    pawan::__interaction interaction(&wake);
+
+    pawan::__io io;
+
+    pawan::__integration integration(step_count, step_count);
+    integration.integrate(&interaction, &io, false);
 }
