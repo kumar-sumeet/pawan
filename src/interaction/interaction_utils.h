@@ -10,12 +10,14 @@
 #ifndef WAKE_UTILS_H_
 #define WAKE_UTILS_H_
 
-#define HIGHORDER 1 
-#define GAUSSIAN 0
+#define HIGHORDER 0
+#define GAUSSIAN 1
 
 #include "src/utils/gsl_utils.h"
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_vector.h>
+#include <chrono>
+#include <thread>
 
 #if HIGHORDER
 #include "src/interaction/highorder.h"
@@ -38,6 +40,7 @@
 inline void VORTICITY(	const double &kernel, 
 			const gsl_vector *strength, 
 			gsl_vector *vorticity ){
+	//DOUT("---------------VORTICITY()---------------");
 	gsl_vector_memcpy(vorticity,strength);
 	gsl_blas_dscal(kernel,vorticity);
 };
@@ -53,6 +56,7 @@ inline void VELOCITY(	const double &kernel,
 			const gsl_vector *vorticity, 
 			const gsl_vector *displacement, 
 			gsl_vector *velocity ){
+	//DOUT("---------------VELOCITY()---------------");
 	gsl_cross(vorticity,displacement,velocity);
 	gsl_blas_dscal(kernel,velocity);
 };
@@ -72,6 +76,7 @@ inline void VORSTRETCH(	const double &q,
 			const gsl_vector *target_vorticity, 
 			const gsl_vector *displacement, 
 			gsl_vector *retvorcity ){
+	//DOUT("---------------VORSTRETCH()---------------");
 	// a_target x a_source
 	gsl_vector *trgXsrc = gsl_vector_calloc(3);
 	gsl_cross(target_vorticity,source_vorticity,trgXsrc);
@@ -84,7 +89,7 @@ inline void VORSTRETCH(	const double &q,
 	gsl_blas_dscal(q,crossed);
 
 	// da/dt = F*[disp.(a_trg x a_src)]disp
-	double roaxa = 0.0;;
+	double roaxa = 0.0;
 	gsl_blas_ddot(displacement,trgXsrc,&roaxa);
 	gsl_vector_memcpy(stretch,displacement);
 	gsl_blas_dscal(F*roaxa,stretch);
@@ -106,11 +111,22 @@ inline void VORSTRETCH(	const double &q,
  */
 inline double ENSTROPHY(const double &s,
 			const gsl_vector *a){
+	//DOUT("---------------ENSTROPHY()---------------");
 	// Kernel Computation
 	double a2 = 0.0;
 	gsl_blas_ddot(a,a,&a2);
 	double S = ENST(s)*a2;
 	return S;
+};
+
+inline double ENSTROPHYF(const double &s,
+                        const gsl_vector *a){
+    //DOUT("---------------ENSTROPHY()---------------");
+    // Kernel Computation
+    double a2 = 0.0;
+    gsl_blas_ddot(a,a,&a2);
+    double S = ENSTF(s)*a2;
+    return S;
 };
 
 /*! \fn inline double ENSTROPHY(const double &s1, const double &s2, const gsl_vector *x1, const gsl_vector *x2, const gsl_vector *a1, const gsl_vector *a2)
@@ -128,6 +144,8 @@ inline double ENSTROPHY(const double &s1,
 			const gsl_vector *x2, 
 			const gsl_vector *a1, 
 			const gsl_vector *a2){
+	//DOUT("---------------ENSTROPHY()---------------");
+	//std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 	// Kernel Computation
 	gsl_vector *x12 = gsl_vector_calloc(3);
 	gsl_vector_memcpy(x12,x2);
@@ -138,7 +156,7 @@ inline double ENSTROPHY(const double &s1,
 	double F1 = 0.0;
 	double F2 = 0.0;
 
-	ENST(rho,sigma,F1,F2);	
+	ENST(rho,sigma,F1,F2);
 
 	// (a1.a2)
 	double a1a2 = 0.0;;
@@ -152,7 +170,36 @@ inline double ENSTROPHY(const double &s1,
 	// (a1.x12).(a2.x12)
 	
 	double S = F1*a1a2 + F2*a1x12*a2x12;
+    gsl_vector_free(x12);
+
 	return S;
+};
+
+inline double ENSTROPHYF(const double &s1,
+                        const double &s2,
+                        const gsl_vector *x1,
+                        const gsl_vector *x2,
+                        const gsl_vector *a1,
+                        const gsl_vector *a2){
+    // Kernel Computation
+    gsl_vector *x12 = gsl_vector_calloc(3);
+    gsl_vector_memcpy(x12,x2);
+    gsl_vector_sub(x12,x1);
+    double rho = gsl_blas_dnrm2(x12);
+    double sigma = sqrt(0.5*(gsl_pow_2(s1) + gsl_pow_2(s2)));
+
+    double F1 = 0.0;
+
+    ENSTF(rho,sigma,F1);
+
+    // (a1.a2)
+    double a1a2 = 0.0;;
+    gsl_blas_ddot(a1,a2,&a1a2);
+
+    double S = F1*a1a2;
+    gsl_vector_free(x12);
+
+    return S;
 };
 
 /*! \fn inline double HELICITY(const double &s1, const double &s2, const gsl_vector *x1, const gsl_vector *x2, const gsl_vector *a1, const gsl_vector *a2)
@@ -170,6 +217,8 @@ inline double HELICITY(	const double &s1,
 			const gsl_vector *x2, 
 			const gsl_vector *a1, 
 			const gsl_vector *a2){
+	//DOUT("---------------HELICITY()---------------");
+	//std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 	// Kernel Computation
 	gsl_vector *x12 = gsl_vector_calloc(3);
 	gsl_vector_memcpy(x12,x2);
@@ -186,21 +235,35 @@ inline double HELICITY(	const double &s1,
 	gsl_blas_ddot(x12,a1Xa2,&roaxa);
 
 	double H = q*roaxa;
-	return H;
+    gsl_vector_free(x12);
+    gsl_vector_free(a1Xa2);
+
+    return H;
 };
 
 /*! \fn inline double KINETICENERGY(const double &s, const gsl_vector *x, const gsl_vector *a)
  * \brief Compute kinetic energy of vortices
- * \param	s	double source position 
+ * \param	s	double source radius
  * \param	a	gsl vector source vorticity
  */
 inline double KINETICENERGY(	const double &s,
 				const gsl_vector *a){
-	double a2 = 0.0;		
+	//DOUT("---------------KINETICENERGY()---------------");
+	double a2 = 0.0;
 	gsl_blas_ddot(a,a,&a2);
 	// KE = (1/8 pi).(a1.a1/sigma)
 	double KE = M_1_PI*a2/s/8.0;
 	return KE;
+};
+
+inline double KINETICENERGYF(	const double &s,
+                                const gsl_vector *a){
+    //DOUT("---------------KINETICENERGYF()---------------");
+    double a2 = 0.0;
+    gsl_blas_ddot(a,a,&a2);
+    // KE = (3/16 pi).(a1.a1/sigma)
+    double KE = 3*M_1_PI*a2/(s*16.0);
+    return KE;
 };
 
 /*! \fn inline double KINETICENERGY(const double &s1, const double &s2, const gsl_vector *x1, const gsl_vector *x2, const gsl_vector *a1, const gsl_vector *a2)
@@ -218,6 +281,7 @@ inline double KINETICENERGY(	const double &s1,
 				const gsl_vector *x2, 
 				const gsl_vector *a1, 
 				const gsl_vector *a2){
+	//DOUT("---------------KINETICENERGY()---------------");
 	// Kernel Computation
 	gsl_vector *x12 = gsl_vector_calloc(3);
 	gsl_vector_memcpy(x12,x2);
@@ -234,31 +298,59 @@ inline double KINETICENERGY(	const double &s1,
 	double x12a2 = 0.0;
 	gsl_blas_ddot(x12,a2,&x12a2);
 	
-	// KE = (1/16 pi).((rho^2 + 2.sigma^2)*(a1.a2) + (x12.a1).(x12.a2))/(rho^2 + sigma^2)^3/2
+	// KE = (1/16 pi).((rho^2 + 2.sigma^2)*(a1.a2) + (x12.a1)(x12.a2))/(rho^2 + sigma^2)^3/2
 	double KE = ((rho2 + 2.0*sigma2)*a1a2 + (x12a1*x12a2))/pow(rho2 + sigma2,1.5)/16.0/M_PI;
+
+    gsl_vector_free(x12);
 	return KE;
+};
+
+inline double KINETICENERGYF(	const double &s1,
+                                const double &s2,
+                                const gsl_vector *x1,
+                                const gsl_vector *x2,
+                                const gsl_vector *a1,
+                                const gsl_vector *a2){
+    //DOUT("---------------KINETICENERGYF()---------------");
+    // Kernel Computation
+    gsl_vector *x12 = gsl_vector_calloc(3);
+    gsl_vector_memcpy(x12,x2);
+    gsl_vector_sub(x12,x1);
+    double rho2;
+    gsl_blas_ddot(x12,x12,&rho2);
+    double sigma2 = 0.5*(gsl_pow_2(s1) + gsl_pow_2(s2));
+    // a1 . a2
+    double a1a2 = 0.0;
+    gsl_blas_ddot(a1,a2,&a1a2);
+
+    // KE = (1/8 pi).(rho^2 + 1.5*sigma^2)*(a1.a2) /(rho^2 + sigma^2)^3/2
+    double KE = (rho2 + 1.5*sigma2)*a1a2 /pow(rho2 + sigma2,1.5)/8.0/M_PI;
+    gsl_vector_free(x12);
+
+    return KE;
 };
 
 /*! \fn inline void DIFFUSION(	const double &nu, const double &sigma, const double &Z, const gsl_vector *source_vorticity, const gsl_vector *target_vorticity, const double &source_volume, const double &target_volume, gsl_vector *retvorcity )
  * \brief Compute rate of change of vorticity due to viscous diffusion
  * \param	nu			double viscosity
  * \param	sigma			double smoothing radius
- * \param	Z			double Z kernel
+ * \param	n			double eta kernel
  * \param	source_vorticity	gsl vector source vorticity
  * \param	target_vorticity	gsl vector target vorticity
  * \param	source_volume		double source volume
  * \param	target_volume		double target volume
  * \param	retvorcity		gsl vector output rate of change of vorticity
  */
-inline void DIFFUSION(	const double &nu, 
+inline void DIFFUSION(	const double &nu,
 			const double &sigma, 
-			const double &Z, 
+			const double &n,
 			const gsl_vector *source_vorticity, 
 			const gsl_vector *target_vorticity, 
 			const double &source_volume, 
-			const double &target_volume, 
+			const double &target_volume,
 			gsl_vector *retvorcity ){
-	
+
+	//DOUT("---------------DIFFUSION()---------------");
 	gsl_vector *va12 = gsl_vector_calloc(3);
 	gsl_vector *va21 = gsl_vector_calloc(3);
 	gsl_vector *dva = gsl_vector_calloc(3);
@@ -275,7 +367,7 @@ inline void DIFFUSION(	const double &nu,
 	double sig12 = 0.5*sigma*sigma;
 	gsl_vector_memcpy(dva,va12);
 	gsl_vector_sub(dva,va21);
-	gsl_blas_dscal(Z*nu/sig12,dva);
+	gsl_blas_dscal(n*nu/sig12,dva);
 	
 	// da = da + dva
 	gsl_vector_add(retvorcity,dva);
@@ -312,13 +404,14 @@ inline void INTERACT(	const double &nu,
 			gsl_vector *dr_target,
 			gsl_vector *da_source, 
 			gsl_vector *da_target){
+	//DOUT("---------------INTERACT()---------------");
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
-	KERNEL(rho,sigma,q,F,Z);
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
+	KERNEL(rho,sigma,q,F,Z,n);
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
@@ -332,7 +425,7 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source
@@ -373,18 +466,19 @@ inline void INTERACT(	const double &nu,
 			gsl_vector *dr_target,
 			gsl_vector *da_source, 
 			gsl_vector *da_target){
+	//DOUT("---------------INTERACT()---------------");
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
 	// Target
-	KERNEL(rho,sigma,q,F,Z);
+	KERNEL(rho,sigma,q,F,Z,n);
 	VELOCITY(q,a_source,displacement,dr);
 	gsl_vector_add(dr_target,dr);
 	// Source
@@ -394,13 +488,13 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source
 	gsl_vector_sub(da_source,da);
 	
-	// Clean up
+	// Clean up 
 	gsl_vector_free(dr);
 	gsl_vector_free(da);
 	gsl_vector_free(displacement);
@@ -443,18 +537,19 @@ inline void INTERACT(	const double &nu,
 			double &qx_source,
 			double &qy_source,
 			double &qz_source){
+	//DOUT("---------------INTERACT()---------------");
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
 	gsl_vector_memcpy(displacement,r_target);
 	gsl_vector_sub(displacement,r_source);
 	double rho = gsl_blas_dnrm2(displacement);
-	double q = 0.0, F = 0.0, Z = 0.0;
+	double q = 0.0, F = 0.0, Z = 0.0, n = 0.0;
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 
 	// Velocity computation
 	gsl_vector *dr = gsl_vector_calloc(3);
 	// Target
-	KERNEL(rho,sigma,q,F,Z);
+	KERNEL(rho,sigma,q,F,Z,n);
 	VELOCITY(q,a_source,displacement,dr);
 	gsl_vector_add(dr_target,dr);
 	// Source
@@ -466,7 +561,7 @@ inline void INTERACT(	const double &nu,
 	// Rate of change of vorticity computation
 	gsl_vector *da = gsl_vector_calloc(3);
 	VORSTRETCH(q,F,a_source,a_target,displacement,da);
-	DIFFUSION(nu,sigma,Z,a_source,a_target,v_source,v_target,da);
+	DIFFUSION(nu,sigma,n,a_source,a_target,v_source,v_target,da);
 	// Target
 	gsl_vector_add(da_target,da);
 	// Source
@@ -497,6 +592,7 @@ inline void INFLUENCE(	const double &sigma,
 			const gsl_vector *a_target, 
 			gsl_vector *k_source, 
 			gsl_vector *k_target){
+	//DOUT("---------------INFLUENCE()---------------");
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
 	gsl_vector_memcpy(displacement,r_target);
@@ -535,6 +631,7 @@ inline void INFLUENCE(	const double &s_source,
 			const gsl_vector *a_target, 
 			gsl_vector *k_source, 
 			gsl_vector *k_target){
+	//DOUT("---------------INFLUENCE()---------------");
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
@@ -565,6 +662,7 @@ inline void INFLUENCE(	const double &s_source,
 			double &kx_source,
 			double &ky_source,
 			double &kz_source){
+	//DOUT("---------------INFLUENCE()---------------");
 	double sigma = sqrt(0.5*(gsl_pow_2(s_source) + gsl_pow_2(s_target)));
 	// Kernel Computation
 	gsl_vector *displacement = gsl_vector_calloc(3);
@@ -586,13 +684,13 @@ inline void INFLUENCE(	const double &s_source,
 	// Clean up
 	gsl_vector_free(dk);
 	gsl_vector_free(displacement);
-	
 };
 
 inline void SELFINFLUENCE(	const double &s_target,
 				const gsl_vector *r_target, 
 				const gsl_vector *a_target, 
 				gsl_vector *k_target){
+	//DOUT("---------------SELFINFLUENCE()---------------");
 	// Kernel Computation
 	double Z = ZETASIG(0.0,s_target);
 	// Vorticity computation

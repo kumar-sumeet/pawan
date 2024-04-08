@@ -10,6 +10,8 @@
 #ifndef PRINT_UTILS_H_
 #define PRINT_UTILS_H_
 
+const bool DEBUG_PRINT=false;
+
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -27,6 +29,13 @@ inline void PAWAN(std::ostream &os = std::cout){
 	os << "\t\t\t     (c) Puneet Singh 2021" << std::endl;
 	os << "********************************************************************************" << std::endl;
 };
+
+inline void DOUT(std::string s, std::ostream &os = std::cout){
+    if (DEBUG_PRINT) {
+        os << s << std::endl;
+    }
+};
+
 
 /*! \fn inline void OUT(std::string s, std::ostream &os = std::cout)
  * \brief Print string

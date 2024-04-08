@@ -27,7 +27,9 @@ class __parallel : public __interaction{
 		 * \param	W	Wake object pointer
 		 */
 		virtual double calculateKineticEnergy(__wake *W);
-		
+        //divergence-free KE
+        virtual double calculateKineticEnergyF(__wake *W);
+
 		//! Calculate Kinetic Energy
 		/*
 		 * Calculates kinetic energy of the wake
@@ -35,7 +37,9 @@ class __parallel : public __interaction{
 		 * \param	W2	Wake 2 object pointer
 		 */
 		virtual double calculateKineticEnergy(__wake *W1, __wake *W2);
-		
+        //divergence-free KE
+        virtual double calculateKineticEnergyF(__wake *W1, __wake *W2);
+
 		//! Interact
 		/*
 		 * Compute interaction between particles of a single wake object
@@ -96,7 +100,9 @@ class __parallel : public __interaction{
 		 * \param	W	Wake object pointer
 		 */
 		virtual double calculateEnstrophy(__wake *W);
-		
+        //divergence-free enstrophy
+        virtual double calculateEnstrophyF(__wake *W);
+
 		//! Calculate Enstrophy
 		/*
 		 * Calculates enstrophy of the wake
@@ -104,7 +110,9 @@ class __parallel : public __interaction{
 		 * \param	W2	Wake 2 object pointer
 		 */
 		virtual double calculateEnstrophy(__wake *W1, __wake *W2);
-		
+        //divergence-free enstrophy
+        virtual double calculateEnstrophyF(__wake *W1, __wake *W2);
+
 		//! Calculate Helicity
 		/*
 		 * Calculates helicity of the wake

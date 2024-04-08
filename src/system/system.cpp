@@ -8,5 +8,6 @@
 #include "system.h"
 
 pawan::__system::__system(){
-	_size = 0;
+    DOUT("----------------in pawan::__system::__system()");
+	//_size = 0;
 }

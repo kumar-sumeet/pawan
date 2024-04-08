@@ -6,8 +6,11 @@
  * @date 09/12/2021
  */
 #include "resolve.h"
+#include <chrono>
+#include <thread>
 
 void pawan::__resolve::rebuild(__interaction *IN, __io *IO){
+    DOUT("----------------in pawan::__resolve::rebuild()");
 	gsl_vector *states = gsl_vector_calloc(IN->_size);
 	gsl_matrix *influence = gsl_matrix_calloc(IN->_size,IN->_size);
 	FILE *f = IO->create_binary_file(".wakeinfluence");
@@ -16,8 +19,10 @@ void pawan::__resolve::rebuild(__interaction *IN, __io *IO){
 	IN->write(f);
 	IN->getStates(states);
 	double tStart = TIME();
-	OUT("Calculating influence matrix of all particles.");
-	for(size_t i = 0; i<IN->_size; ++i){
+	OUT("Calculating influence matrix of all particles ");
+	//printf("IN->_size = %d",IN->_size);
+    //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
+    for(size_t i = 0; i<IN->_size; ++i){
 		gsl_vector_set(states,i,1.0);
 		IN->setStates(states);
 		IN->resolve();
@@ -26,7 +31,7 @@ void pawan::__resolve::rebuild(__interaction *IN, __io *IO){
 		OUT("\ti",i);
 		gsl_vector_set(states,i,0.0);
 		t += 1.0;
-		fwrite(&t,sizeof(double),1,f);	
+		fwrite(&t,sizeof(double),1,f);
 		IN->write(f);
 	}
 	fclose(f);
@@ -54,4 +59,5 @@ void pawan::__resolve::rebuild(__interaction *IN, __io *IO){
 	gsl_vector_free(result);
 	gsl_vector_free(states);
 	gsl_vector_free(vrxfield);
+    DOUT("----------------out pawan::__resolve::rebuild()");
 }

@@ -48,13 +48,15 @@ inline void KERNEL(	const double &rho,
 			const double &sigma, 
 			double &q, 
 			double &F, 
-			double &Z){
+			double &Z,
+			double &n){
 	double rho_bar = rho/sigma;
 	double sig3 = sigma*sigma*sigma;
 	Z = ZETASIG(rho,sigma);
 	double phi = 0.25*M_1_PI*erf(M_SQRT1_2*rho_bar)/sig3;
 	q = (phi/rho_bar - Z)/gsl_pow_2(rho_bar);
-	F = (Z - 3*q)/gsl_pow_2(rho);
+	n = ZETASIG(rho,sigma);
+	F = (Z - 3.0*q)/gsl_pow_2(rho);
 };
 
 /*! \fn inline double ENST(const double &rho, const double &sigma, double &q)
@@ -72,6 +74,12 @@ inline void ENST(	const double &rho,
 	F2 = 0.0;
 };
 
+inline void ENSTF(	const double &rho,
+                      const double &sigma,
+                      double &F1){
+    F1 = 0.0;
+};
+
 /*! \fn inline double ENST(const double &rho, const double &sigma, double &q)
  * \brief Compute enstrophy induced by vortex particle kernel
  * \param	sigma		double radius
@@ -79,5 +87,9 @@ inline void ENST(	const double &rho,
 inline double ENST(	const double &sigma){
 	return 0.0;
 };
+inline double ENSTF(	const double &sigma){
+    return 0.0;
+};
+
 
 #endif

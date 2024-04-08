@@ -6,6 +6,7 @@
  * @date 04/24/2021
  */
 #include "parallel.h"
+#include "src/utils/print_utils.h"
 
 pawan::__parallel::__parallel(__wake *W):__interaction(W){}
 pawan::__parallel::__parallel(__wake *W1, __wake *W2):__interaction(W1,W2){}
@@ -158,7 +159,7 @@ void pawan::__parallel::calculateLinearImpulse(__wake *W, gsl_vector *I){
 
 void pawan::__parallel::calculateTotalVorticity(__wake *W, gsl_vector *O){
 	gsl_vector_set_zero(O);
-	double Ox, Oy, Oz = 0.0;
+	double Ox = 0.0, Oy = 0.0, Oz = 0.0;
 	#pragma omp parallel for reduction(+:Ox,Oy,Oz)
 	for(size_t i = 0; i < W->_numParticles; ++i){
 		Ox += gsl_matrix_get(W->_vorticity,i,0);
@@ -172,7 +173,7 @@ void pawan::__parallel::calculateTotalVorticity(__wake *W, gsl_vector *O){
 
 void pawan::__parallel::calculateAngularImpulse(__wake *W, gsl_vector *A){
 	gsl_vector_set_zero(A);
-	double Lx, Ly, Lz = 0.0;
+	double Lx = 0.0, Ly = 0.0, Lz = 0.0;
 	#pragma omp parallel for reduction(+:Lx,Ly,Lz)
 	for(size_t i = 0; i < W->_numParticles; ++i){
 		gsl_vector *rxa = gsl_vector_calloc(3);
@@ -209,7 +210,7 @@ double pawan::__parallel::calculateKineticEnergy(__wake *W){
 		}
 		ke += keJ;
 	}
-	return 2.0*ke;
+	return ke;
 }
 
 double pawan::__parallel::calculateKineticEnergy(__wake *W1, __wake *W2){
@@ -224,12 +225,53 @@ double pawan::__parallel::calculateKineticEnergy(__wake *W1, __wake *W2){
 			gsl_vector_const_view rJ = gsl_matrix_const_row(W2->_position,J);
 			gsl_vector_const_view aJ = gsl_matrix_const_row(W2->_vorticity,J);
 			double sJ = gsl_vector_get(W2->_radius,J);
-			keJ += KINETICENERGY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+			keJ += 2.0*KINETICENERGY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
 		}
 		ke += keJ;
 	}
 	// doubling KE because KE(i,j) = KE(j,i)
-	return 2.0*ke;
+	return ke;
+}
+
+double pawan::__parallel::calculateKineticEnergyF(__wake *W){
+    double ke = 0.0;
+    for(size_t I = 0; I < W->_numParticles; ++I){
+        gsl_vector_const_view rI = gsl_matrix_const_row(W->_position,I);
+        gsl_vector_const_view aI = gsl_matrix_const_row(W->_vorticity,I);
+        double sI = gsl_vector_get(W->_radius,I);
+        ke += KINETICENERGYF(sI,&aI.vector);
+        double keJ = 0.0;
+#pragma omp parallel for reduction(+:keJ)
+        for(size_t J = I + 1; J < W->_numParticles; ++J){
+            gsl_vector_const_view rJ = gsl_matrix_const_row(W->_position,J);
+            gsl_vector_const_view aJ = gsl_matrix_const_row(W->_vorticity,J);
+            double sJ = gsl_vector_get(W->_radius,J);
+            keJ += 2.0*KINETICENERGYF(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+        }
+        ke += keJ;
+    }
+    return ke;
+}
+
+double pawan::__parallel::calculateKineticEnergyF(__wake *W1, __wake *W2){
+    double ke = 0.0;
+    for(size_t I = 0; I < W1->_numParticles; ++I){
+        gsl_vector_const_view rI = gsl_matrix_const_row(W1->_position,I);
+        gsl_vector_const_view aI = gsl_matrix_const_row(W1->_vorticity,I);
+        double sI = gsl_vector_get(W1->_radius,I);
+        double keJ = 0.0;
+#pragma omp parallel for reduction(+:keJ)
+        for(size_t J = 0; J < W2->_numParticles; ++J){
+            gsl_vector_const_view rJ = gsl_matrix_const_row(W2->_position,J);
+            gsl_vector_const_view aJ = gsl_matrix_const_row(W2->_vorticity,J);
+            double sJ = gsl_vector_get(W2->_radius,J);
+            // doubling KE because KE(i,j) = KE(j,i)
+            keJ += 2.0*KINETICENERGYF(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+        }
+        ke += keJ;
+    }
+
+    return ke;
 }
 
 double pawan::__parallel::calculateHelicity(__wake *W){
@@ -244,12 +286,13 @@ double pawan::__parallel::calculateHelicity(__wake *W){
 			gsl_vector_const_view rJ = gsl_matrix_const_row(W->_position,J);
 			gsl_vector_const_view aJ = gsl_matrix_const_row(W->_vorticity,J);
 			double sJ = gsl_vector_get(W->_radius,J);
-			hJ += HELICITY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+            // doubling H because H(i,j) = H(j,i)
+			hJ += 2.0*HELICITY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
 		}
 		h += hJ;
 	}
-	// doubling H because H(i,j) = H(j,i)
-	return 2.0*h;
+
+	return h;
 }
 
 double pawan::__parallel::calculateHelicity(__wake *W1, __wake *W2){
@@ -264,12 +307,13 @@ double pawan::__parallel::calculateHelicity(__wake *W1, __wake *W2){
 			gsl_vector_const_view rJ = gsl_matrix_const_row(W2->_position,J);
 			gsl_vector_const_view aJ = gsl_matrix_const_row(W2->_vorticity,J);
 			double sJ = gsl_vector_get(W2->_radius,J);
-			hJ += HELICITY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+            // doubling H because H(i,j) = H(j,i)
+			hJ += 2.0*HELICITY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
 		}
 		h += hJ;
 	}
-	// doubling H because H(i,j) = H(j,i)
-	return 2.0*h;
+
+	return h;
 }
 
 double pawan::__parallel::calculateEnstrophy(__wake *W){
@@ -305,10 +349,53 @@ double pawan::__parallel::calculateEnstrophy(__wake *W1, __wake *W2){
 			gsl_vector_const_view rJ = gsl_matrix_const_row(W2->_position,J);
 			gsl_vector_const_view aJ = gsl_matrix_const_row(W2->_vorticity,J);
 			double sJ = gsl_vector_get(W2->_radius,J);
-			enJ += ENSTROPHY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+            // doubling S because S(i,j) = S(j,i)
+			enJ += 2.0*ENSTROPHY(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
 		}
 		s += enJ;
 	}
-	// doubling S because S(i,j) = S(j,i)
-	return 2.0*s;
+	return s;
+}
+
+
+double pawan::__parallel::calculateEnstrophyF(__wake *W){
+    double s = 0.0;
+    for(size_t I = 0; I < W->_numParticles; ++I){
+        gsl_vector_const_view rI = gsl_matrix_const_row(W->_position,I);
+        gsl_vector_const_view aI = gsl_matrix_const_row(W->_vorticity,I);
+        double sI = gsl_vector_get(W->_radius,I);
+        s += ENSTROPHYF(sI,&aI.vector);
+        double enJ = 0.0;
+#pragma omp parallel for reduction(+:enJ)
+        for(size_t J = I + 1; J < W->_numParticles; ++J){
+            gsl_vector_const_view rJ = gsl_matrix_const_row(W->_position,J);
+            gsl_vector_const_view aJ = gsl_matrix_const_row(W->_vorticity,J);
+            double sJ = gsl_vector_get(W->_radius,J);
+            // doubling S because S(i,j) = S(j,i)
+            enJ += 2*ENSTROPHYF(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+        }
+        s += enJ;
+    }
+    return s;
+}
+
+double pawan::__parallel::calculateEnstrophyF(__wake *W1, __wake *W2){
+    double s = 0.0;
+    for(size_t I = 0; I < W1->_numParticles; ++I){
+        gsl_vector_const_view rI = gsl_matrix_const_row(W1->_position,I);
+        gsl_vector_const_view aI = gsl_matrix_const_row(W1->_vorticity,I);
+        double sI = gsl_vector_get(W1->_radius,I);
+        double enJ = 0.0;
+#pragma omp parallel for reduction(+:enJ)
+        for(size_t J = 0; J < W2->_numParticles; ++J){
+            gsl_vector_const_view rJ = gsl_matrix_const_row(W2->_position,J);
+            gsl_vector_const_view aJ = gsl_matrix_const_row(W2->_vorticity,J);
+            double sJ = gsl_vector_get(W2->_radius,J);
+            // doubling S because S(i,j) = S(j,i)
+            enJ += 2.0*ENSTROPHYF(sI,sJ,&rI.vector,&rJ.vector,&aI.vector,&aJ.vector);
+        }
+        s += enJ;
+    }
+
+    return s;
 }

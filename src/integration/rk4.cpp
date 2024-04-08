@@ -62,7 +62,7 @@ void pawan::__rk4::step(const double &dt, __system *S, gsl_vector* states){
 	gsl_vector_scale(k2,dt/3.);
 
 	gsl_vector_add(k1,k2);
-	
+
 	gsl_vector_add(states,k1);
 
 	S->setStates(states);

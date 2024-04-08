@@ -42,6 +42,8 @@ class __vring : public __ring{
 		 * \param n	Number of particles
 		 */
 		virtual void create_particles(const int &n);
+        //! Add particles once private members set
+		//virtual void addParticles();
 
 	public:
 		//! Constructor for vogel model vortex ring
@@ -50,8 +52,13 @@ class __vring : public __ring{
 		 * \param radius	Ring radius
 		 * \param core		Core radius
 		 * \param nLayers	Number of core layers
+		 * \param nAzi	    Azimuthal discretization
 		 */
-		__vring(const double &radius, const double &core, const int &nLayers);
+		__vring(const double &radius,
+                const double &core,
+                const int &nLayers,
+                const int &nAzi,
+                const double &sig);
 		
 		//! Destructor
 		/*
@@ -92,7 +99,7 @@ class __vring : public __ring{
 		 * \param state		Wake state
 		 */
 		virtual void setStates(const gsl_vector *state);
-		
+
 		//! Get rates
 		/*
 		 * Get velocities and rate of change of vorticities of particles

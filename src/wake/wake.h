@@ -12,9 +12,14 @@
 #include <iostream>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_matrix.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
 
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
+#include "src/networkinterface/networkdatastructures.h"
+#define SHEDVOR 0 //model only trail vortices if 0
+#define MAXNUMPARTICLES 100000 //max particles per wake
 
 namespace pawan{
 
@@ -29,9 +34,18 @@ class __wake{
 		 */
 		virtual void create_particles(const int &n);
 
-	public:
-		size_t _size;			/*!< Size of state vector */
+        //! Create a large (default) number of particles
+        virtual void initialise_memory();
+
+    public:
+		size_t _size;			    /*!< Size of state vector with particle entries */
+        size_t _maxsize;			/*!< Max size of state vector with particle entries */
 		size_t _numParticles;		/*!< Number of vortex particles */
+        size_t _maxnumParticles;	/*!< Max expected number of vortex particles */
+		size_t _npidx;              /*!< Particle tracking index when MAXNUMPARTICLES reached during coupling */
+        bool _maxmem;                /*!< tracks whether maximum memory reached */
+        gsl_vector *_lastsectpartnpidx;/*!< Particle index _npidx of last particle emanating from spanres section */
+        gsl_matrix *_initTEpos;		/*!< TE pos at first time step of simulation */
 		gsl_matrix *_position;		/*!< Particle positions */
 		gsl_matrix *_velocity;		/*!< Particle velocity */
 		gsl_matrix *_vorticity;		/*!< Particle vorticities */
@@ -40,19 +54,45 @@ class __wake{
 		gsl_vector *_volume;		/*!< Particle volumes */
 		gsl_vector *_birthstrength;	/*!< Strengths of particles at birth */
 		gsl_matrix *_vorticityfield;	/*!< Vorticity field */
+        gsl_vector *_active;		/*!< Particle active in simulation or defunct */
 		
 		//! Constructor
 		/*
 		 * Creates default
 		 */
 		__wake();
-		
-		//! Destructor
+
+        //! Constructor for Dymore coupling
+        /*
+         * Creates vortex particles at the first time step
+         */
+        __wake(PawanRecvData pawanrecvdata);
+
+        //! For validation cases
+        __wake(__wake *W);
+        virtual void addParticles(__wake *W);
+
+        //! Destructor
 		/*
 		 * Deletes particles
 		 */
 		virtual ~__wake();
 
+        //! split particles in wake
+        virtual void split(size_t &stepnum);
+        //! merge particles in wake
+        virtual void merge(size_t &stepnum);
+        //! add relaxation to wake
+        virtual void relax(size_t &stepnum);
+        virtual void getlfnvec(double* vec,const double* mat,const int rowsize,const int axis,const int offset, const int size);
+        //!Adds vortex particles as the Dymore coupling progresses
+        virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
+        //! translate particles with Vinf
+        virtual void updateVinfEffect(const double *Vinf, double &dt);
+        //! translate particles due to induced vel from bound vortices
+        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt);
+        virtual void BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt);
+        virtual void BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt);
 		//! Print all wake particles
 		/*
 		 * Print wake particle information
@@ -115,6 +155,20 @@ class __wake{
 		 * \param x		Distance
 		 */
 		virtual void translate(const size_t &n, const double &x);
+
+        //! Translate
+        /*
+         * Translate wake structure
+         * \param x		3-element array denoting translation
+         */
+        virtual void translate(const double *x);
+        //! Elemental Rotation about a coordinate axis
+        /*
+         * Rotate wake structure
+         * \param n		axis
+         * \param a     angle in radian
+         */
+        virtual void rotate(const size_t &n,const double &a);
 };
 }
 #endif

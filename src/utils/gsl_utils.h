@@ -17,6 +17,8 @@
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
+#include <gsl/gsl_cblas.h>
+#include <gsl/gsl_blas.h>
 
 
 /*
@@ -326,5 +328,76 @@ inline void set_gsl_matrix(const double *A, gsl_matrix *M, const int &n, const i
 		}
 	}
 };
+
+inline void _gsl_AmulB(gsl_matrix *A, const gsl_matrix *B){
+    int alpha = 1;
+    double beta=0.0;
+    gsl_matrix *C = gsl_matrix_calloc(A->size1, A->size2);
+    //gsl_matrix_memcpy(C, A); //C same size as A now
+    //DOUT("--------------------------------in pawan::_gsl_AmulB()");
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, alpha,
+                   A, B, beta, C);
+    gsl_matrix_memcpy(A, C);
+};
+
+inline void _gsl_AplusB(gsl_matrix *A, const gsl_matrix *B){
+    double sum;
+    for(size_t i = 0; i<A->size1; ++i) {
+        for (size_t j = 0; j < A->size2; ++j) {
+            sum = gsl_matrix_get(A, i, j) + gsl_matrix_get(B, 0, j);
+            gsl_matrix_set(A, i, j,sum);
+        }
+    }
+};
+
+inline void _gsl_rowsize(double *rowsize, const gsl_matrix *A){
+//    rowsize
+};
+
+inline double _gsl_vector_cumsum(const gsl_vector *A, const size_t idx){
+    double cumsum=0.0;
+    for(size_t i = 0; i<=idx; ++i) {
+        cumsum = cumsum + gsl_vector_get(A,i);
+    }
+    return cumsum;
+};
+
+
+/*! \fn inline void _gsl_rotationX_matrix_set(gsl_matrix *R, const double &phi)
+ * \brief	get rotation matrix for rotation (in deg) about Z-axis
+ * \param	phi    double     in rad
+ */
+inline void _gsl_rotationX_matrix_set(gsl_matrix *R, const double &phi){
+    gsl_matrix_set(R,0,0,1);
+    gsl_matrix_set(R,1,1,cos(phi));
+    gsl_matrix_set(R,1,2,sin(phi));
+    gsl_matrix_set(R,2,1,-sin(phi));
+    gsl_matrix_set(R,2,2,cos(phi));
+};
+
+/*! \fn inline void _gsl_rotationY_matrix_set(gsl_matrix *R, const double &phi)
+ * \brief	get rotation matrix for rotation (in deg) about Z-axis
+ * \param	phi    double
+ */
+inline void _gsl_rotationY_matrix_set(gsl_matrix *R, const double &phi){
+    gsl_matrix_set(R,0,0,cos(phi));
+    gsl_matrix_set(R,0,2,-sin(phi));
+    gsl_matrix_set(R,1,1,1);
+    gsl_matrix_set(R,2,0,sin(phi));
+    gsl_matrix_set(R,2,2,cos(phi));
+};
+
+/*! \fn inline void _gsl_rotationZ_matrix_set(gsl_matrix *R, const double &phi)
+ * \brief	get rotation matrix for rotation (in deg) about Z-axis
+ * \param	phi    double
+ */
+inline void _gsl_rotationZ_matrix_set(gsl_matrix *R, const double &phi){
+    gsl_matrix_set(R,0,0,cos(phi));
+    gsl_matrix_set(R,0,1,sin(phi));
+    gsl_matrix_set(R,1,0,-sin(phi));
+    gsl_matrix_set(R,1,1,cos(phi));
+    gsl_matrix_set(R,2,2,1);
+};
+
 
 #endif

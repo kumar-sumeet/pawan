@@ -16,6 +16,7 @@
 #include "src/utils/print_utils.h"
 #include "src/system/system.h"
 #include "src/wake/wake.h"
+#include "src/networkinterface/networkdatastructures.h"
 
 namespace pawan{
 class __interaction : public __system{
@@ -29,14 +30,18 @@ class __interaction : public __system{
 		double _enstrophy;		/*!< Enstrophy */
 		double _helicity;		/*!< Helicity */
 		double _kineticEnergy;		/*!< Kinetic Energy */
-		
+        double _enstrophyF;		/*!< div-free Enstrophy */
+        double _kineticEnergyF;		/*!< div-free Kinetic Energy */
+        double _Zc=0.0;        /*!< position of (vring) wake centroid */
 		//! Calculate Kinetic Energy
 		/*
 		 * Calculates kinetic energy of the wake
 		 * \param	W	Wake object pointer
 		 */
 		virtual double calculateKineticEnergy(__wake *W);
-		
+        //divergence-free KE
+		virtual double calculateKineticEnergyF(__wake *W);
+
 		//! Calculate Kinetic Energy
 		/*
 		 * Calculates kinetic energy of the wake
@@ -44,14 +49,18 @@ class __interaction : public __system{
 		 * \param	W2	Wake 2 object pointer
 		 */
 		virtual double calculateKineticEnergy(__wake *W1, __wake *W2);
-		
-		//! Calculate Enstrophy
+        //divergence-free KE
+		virtual double calculateKineticEnergyF(__wake *W1, __wake *W2);
+
+    //! Calculate Enstrophy
 		/*
 		 * Calculates enstrophy of the wake
 		 * \param	W	Wake object pointer
 		 */
 		virtual double calculateEnstrophy(__wake *W);
-		
+		//divergence-free enstrophy
+        virtual double calculateEnstrophyF(__wake *W);
+
 		//! Calculate Enstrophy
 		/*
 		 * Calculates enstrophy of the wake
@@ -59,7 +68,9 @@ class __interaction : public __system{
 		 * \param	W2	Wake 2 object pointer
 		 */
 		virtual double calculateEnstrophy(__wake *W1, __wake *W2);
-		
+        //divergence-free enstrophy
+        virtual double calculateEnstrophyF(__wake *W1, __wake *W2);
+
 		//! Calculate Helicity
 		/*
 		 * Calculates helicity of the wake
@@ -204,6 +215,9 @@ class __interaction : public __system{
 		 * \param f	Binary file
 		 */
 		virtual void write(FILE *f);
+        //write diagnostics to file
+        virtual void writediagnosis(FILE *fdiag);
+        virtual void writenu(FILE *fdiag);
 
 		//! Set states
 		/*
@@ -225,7 +239,19 @@ class __interaction : public __system{
 		 * \param state		Wake state
 		 */
 		virtual void getStates(gsl_vector *state);
-		
+
+        //! add relaxation to wake system
+        virtual void relax(size_t &stepnum);
+		//! add new particles
+		virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
+        //! translate particles with Vinf
+        virtual void updateVinfEffect(const double *Vinf,double &dt);
+        //! translate particles due to induced vel from bound vortices
+        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt);
+        //! get induced due to all wake particles at each airstation
+        virtual void getInflow(PawanRecvData pawanrecvdata, PawanSendData pawansenddata);
+        //! get velocity induced due to all wake particles at a given location
+        virtual void getVi(const gsl_vector *r, gsl_vector *vi,const size_t &n);//n is dummy, remove alter
 		//! Get ideal rates
 		/*
 		 * Get ideal rates

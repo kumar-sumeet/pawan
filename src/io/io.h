@@ -26,6 +26,7 @@ class __io{
 		 * Creates empty directory
 		 */
 		__io();
+        __io(std::string dymfilename);
 		
 		//! Destructor
 		/*
