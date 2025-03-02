@@ -23,12 +23,19 @@ typedef struct pawanrecvdata {    //better implementation possible perhaps
     double lfnlen[PAWAN_MAXLFNLINES]; //span of lfnline
     Pawancinttype pawancinttype;
     Pawanregfunctype pawanregfunctype;
+    int xrelax;
+    int xsavepart;
+    int xsavegrid;
     int trailvor;
     int shedvor;
     int suprootvor; // 0 -> do not suppress root vortices, 1-> suppress root vortices
     int transientsteps;
     int infl2D;  //0-> full 3D wake used to calculate inflow; 1-> only panel shed wake used to calculate inflow
     int spanres;
+    int relax; //0-> don't use relaxation; 1->use relaxation
+    int bndvorincl; //0-> don't use effec of bound vortex on particles; 1->use it
+    int bndvorinclnsteps;
+    int bndvorbndvorint; //bound vortex-bound vortex interaction in case of coaxial rotors
     double acrossa;
     double deltat;
     double t; //time
