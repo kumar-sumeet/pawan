@@ -43,8 +43,176 @@ template<int threadBlockSize, int unrollFactor>
 pawan::gpu_int<threadBlockSize,unrollFactor>::gpu_int():__integration(){}
 
 template<int threadBlockSize = 128, int unrollFactor = 1>
-__global__ void stepKernel(const double4 *source, double4 *target, double3 *rates, const size_t N, const double nu,const double dt) {
+__global__ void boundVorVindKernel(double4 *particles, const double3 *astpos, const size_t Npart, const double* circ,
+                                   const size_t NbOfLfnLines, const int *NbOfAst, const double dt) {
+    size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    double3 vb = {0,0,0}, Si, rast12, rast1r, licap, sicap, rast2r, vbi;
+    double3 r;
+    double t,span,simag,alpha,beta;
+    double gamma0, gamma1;
+    double factor;
+    if(tid < Npart) {
+        r.x = particles[2 * tid].x;
+        r.y = particles[2 * tid].y;
+        r.z = particles[2 * tid].z;
 
+        int astidx = 0;
+        for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
+            for (size_t iast = 0; iast < NbOfAst[ilfn] - 2; ++iast) {
+                Si = {0,0,0};
+                licap={0,0,0};
+
+                rast12 = astpos[astidx+1];
+                subtract(rast12,astpos[astidx]);
+                span = dnrm2(rast12);
+
+                rast1r = r;
+                subtract(rast1r,astpos[astidx]);
+                t = dot_product(rast1r, rast12);
+                t = t / (span * span);
+
+                scaleadd(Si,rast12,t);
+                add(Si, astpos[astidx]);
+
+                scaleadd(licap, rast12, 1/span);
+
+                sicap = r;
+                subtract(sicap, Si);
+                simag = dnrm2(sicap);
+                scale(1/simag, sicap);
+
+                rast2r = r;
+                subtract(rast2r, astpos[astidx+1]);
+                alpha = dot_product(rast2r, rast12);
+                alpha = acos(-alpha / dnrm2(rast2r) / span);
+                beta = dot_product(rast1r, rast12);
+                beta = acos(beta / dnrm2(rast1r) / span);
+
+                //t can be -ve
+                gamma0 = (circ[astidx] * fabs(span * (1 - t)) + circ[astidx + 1] * fabs(t * span)) / (span * span);
+                gamma1 = (circ[astidx + 1] - circ[astidx]) / span;
+                cross(licap, sicap, vbi);
+                scale(0.25 * M_1_PI / simag, vbi);
+                factor = span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
+                scale(factor, vbi);
+
+                add(vb, vbi);
+
+                astidx++;
+            }
+        }
+        particles[2 * tid].x += vb.x * dt;
+        particles[2 * tid].y += vb.y * dt;
+        particles[2 * tid].z += vb.z * dt;
+    }
+}
+
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__global__ void boundVorStretchKernel(double4 *particles, const double3 *astpos, const size_t Npart, const double* circ,
+                                   const size_t NbOfLfnLines, const int *NbOfAst, const double dt) {
+    size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    double3 da = {0,0,0}, Si, rast12, rast1r, licap, sicap, rast2r, d1cap, d2cap, da1, da21, da22, da23, da24, licrosssi;
+    double3 r, a;
+    double t,span,simag,alpha,beta, d1mag, d2mag, dotprod;
+    double gamma0, gamma1;
+    double factor1, factor21, factor22, factor23, factor24;
+    if(tid < Npart) {
+        r.x = particles[2 * tid].x;
+        r.y = particles[2 * tid].y;
+        r.z = particles[2 * tid].z;
+        a.x = particles[2 * tid + 1].x;
+        a.y = particles[2 * tid + 1].y;
+        a.z = particles[2 * tid + 1].z;
+
+        int astidx = 0;
+        for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
+            for (size_t iast = 0; iast < NbOfAst[ilfn] - 2; ++iast) {
+                Si = {0,0,0};
+                licap={0,0,0};
+
+                rast12 = astpos[astidx+1];
+                subtract(rast12,astpos[astidx]);
+                span = dnrm2(rast12);
+
+                rast1r = r;
+                subtract(rast1r,astpos[astidx]);
+                t = dot_product(rast1r, rast12);
+                t = t / (span * span);
+
+                scaleadd(Si,rast12,t);
+                add(Si, astpos[astidx]);
+
+                scaleadd(licap, rast12, 1/span);
+
+                sicap = r;
+                subtract(sicap, Si);
+                simag = dnrm2(sicap);
+                scale(1/simag, sicap);
+
+                rast2r = r;
+                subtract(rast2r, astpos[astidx+1]);
+                alpha = dot_product(rast2r, rast12);
+                alpha = acos(-alpha / dnrm2(rast2r) / span);
+                beta = dot_product(rast1r, rast12);
+                beta = acos(beta / dnrm2(rast1r) / span);
+
+                //t can be -ve
+                gamma0 = (circ[astidx] * fabs(span * (1 - t)) + circ[astidx + 1] * fabs(t * span)) / (span * span);
+                gamma1 = (circ[astidx + 1] - circ[astidx]) / span;
+
+                d1cap = rast1r;
+                d2cap = rast2r;
+                d2mag = dnrm2(rast2r);
+                d1mag = dnrm2(rast1r);
+                scale(1/d2mag, d2cap);
+                scale(1/d1mag, d1cap);
+
+                cross(licap, a, da1);
+                factor1 = span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
+                scale(factor1, da1);
+
+                cross(licap, sicap, licrosssi);
+                dotprod = dot_product(a, licrosssi);
+
+                da21 = licap;
+                factor21 = span * gamma0 * (sin(beta) - sin(alpha)) - simag * gamma1 * (cos(beta) + cos(alpha));
+                scale(factor21, da21);
+
+                da22=sicap;
+                factor22 = -(2 * span * gamma0 * (cos(beta) + cos(alpha)) -
+                             simag * gamma1 * (sin(beta) - sin(alpha)));
+                scale(factor22, da22);
+
+                da23 = d1cap;
+                factor23 = -(span * gamma0 * sin(beta) - simag * gamma1 * cos(beta)) * cos(beta);
+                scale(factor23, da23);
+
+                da24 = d2cap;
+                factor24 = -(span * gamma0 * sin(alpha) + simag * gamma1 * cos(alpha)) * cos(alpha);
+                scale(factor24, da24);
+
+                add(da21, da22);
+                add(da21, da23);
+                add(da21, da24);
+                scale(dotprod, da21);
+                add(da1, da21);
+                scale(0.25 * M_1_PI / (simag * simag), da1);
+                add(da, da1);
+
+                astidx++;
+            }
+        }
+        particles[2 * tid + 1].x += da.x * dt;
+        particles[2 * tid + 1].y += da.y * dt;
+        particles[2 * tid + 1].z += da.z * dt;
+    }
+}
+
+
+template<int threadBlockSize = 128, int unrollFactor = 1>
+__global__ void stepKernel(const double4 *source, double4 *target, double3 *rates, int *age, const size_t N, const double nu,const double dt) {
+
+    int ownage = 0;
     double4 ownPosition, ownVorticity;
     double3 ownVelocity = {0,0,0}, ownRetVorticity = {0,0,0};
 
@@ -52,11 +220,12 @@ __global__ void stepKernel(const double4 *source, double4 *target, double3 *rate
 
     //cache own particle if index in bounds
     if(index < N){
+        ownage = age[index];
         ownPosition = source[2 * index];
         ownVorticity = source[2 * index + 1];
     }
 
-    interact_with_all<threadBlockSize,unrollFactor>(source, N, nu, ownPosition, ownVorticity, index, ownVelocity, ownRetVorticity);
+    interact_with_all<threadBlockSize,unrollFactor>(source, ownage, N, nu, ownPosition, ownVorticity, index, ownVelocity, ownRetVorticity);
 
     if(index < N) {
         rates[2 * index] = ownVelocity;
@@ -73,8 +242,9 @@ __global__ void stepKernel(const double4 *source, double4 *target, double3 *rate
 
 }
 template<int threadBlockSize = 128, int unrollFactor = 1>
-__global__ void rk4stepKernel(const double4 *source, const double4 *x, double4 *target, double3 *rates, const size_t N, const double nu,const double dt) {
+__global__ void rk4stepKernel(const double4 *source, const double4 *x, double4 *target, double3 *rates, int *age, const size_t N, const double nu,const double dt) {
 
+    int ownage = 0;
     double4 xPosition, xVorticity;
     double4 ownPosition, ownVorticity;
     double3 xVelocity = {0,0,0}, xRetVorticity = {0,0,0};
@@ -83,13 +253,14 @@ __global__ void rk4stepKernel(const double4 *source, const double4 *x, double4 *
 
     //cache own particle if index in bounds
     if(index < N){
+        ownage = age[index];
         xPosition = x[2 * index];
         xVorticity = x[2 * index + 1];
         ownPosition = source[2 * index];
         ownVorticity = source[2 * index + 1];
     }
 
-    interact_with_all<threadBlockSize,unrollFactor>(x, N, nu, xPosition, xVorticity, index, xVelocity, xRetVorticity);
+    interact_with_all<threadBlockSize,unrollFactor>(x, ownage, N, nu, xPosition, xVorticity, index, xVelocity, xRetVorticity);
 
     if(index < N) {
         rates[2 * index] = xVelocity;
@@ -125,26 +296,26 @@ __global__ void rk4finalstepKernel(const double4 *source, double4 *target,
 }
 
 template<int threadBlockSize = 128, int unrollFactor = 1>
-void rk4Step(const double4 *source, double4 *target, const size_t N, const double nu, const double dt,
+void rk4Step(const double4 *source, double4 *target, int *age, const size_t N, const double nu, const double dt,
              double4* x1, double4* x2, double4* x3,
              double3* k1, double3* k2, double3* k3, double3* k4,
              cudaStream_t stream, const size_t threadBlocks) {
 
     // k1 = f(x,t)
     // x1 = x + 0.5*dt*k1
-    stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x1,k1,N, nu, 0.5*dt);
+    stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x1,k1,age,N, nu, 0.5*dt);
 
     // k2 = f(x1, t+0.5*dt)
     // x2 = x + 0.5*dt*k2
-    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x1,x2,k2,N, nu, 0.5*dt);
+    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x1,x2,k2,age,N, nu, 0.5*dt);
 
     // k3 = f(x2, t+0.5*dt)
     // x3 = x + dt*k3
-    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x2,x3,k3,N, nu, dt);
+    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x2,x3,k3,age,N, nu, dt);
 
     // k4 = f(x3, t+dt)
     //x2 used as dummy input since it is no longer required
-    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x3,x2,k4,N, nu, dt);
+    rk4stepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize,0,stream>>>(source,x3,x2,k4,age,N, nu, dt);
 
     rk4finalstepKernel<threadBlockSize,unrollFactor><<<threadBlocks, threadBlockSize, 0, stream>>>(source, target, k1, k2, k3, k4, N, dt);
 }
@@ -199,7 +370,7 @@ __global__ void divfreevorKernel(const double4 *target, double3 *divfreevor, con
 
     divfreeomega_contrib_all<threadBlockSize,unrollFactor>(target, N, ownPosition, index, divfreeomega_p);
 
-    if(index < N) {//alpha_p = vol * omega
+    if(index < N) {//alpha_p(div-free) = vol * omega
         divfreevor[index].x = divfreeomega_p.x * target[2 * index + 1].w;
         divfreevor[index].y = divfreeomega_p.y * target[2 * index + 1].w;
         divfreevor[index].z = divfreeomega_p.z * target[2 * index + 1].w;
@@ -208,22 +379,13 @@ __global__ void divfreevorKernel(const double4 *target, double3 *divfreevor, con
 template<int threadBlockSize = 128, int unrollFactor = 1>
 __global__ void relaxKernel(double4 *target,const double3 *divfreevor, const size_t N) {
     size_t tid = blockIdx.x * threadBlockSize + threadIdx.x;
-    double factor = 0.1;   //f*delta_t from Pedrizetti's equation
+    double factor = 0.3;   //f*delta_t from Pedrizetti's equation
     if(tid < N) {
-        if(tid==0)
-            printf("alpha       = %10.5e, %10.5e, %10.5e\n",
-                   target[2 * tid + 1].x,target[2 * tid + 1].y,target[2 * tid + 1].z);
         double alpha_p = dnrm2(target[2 * tid + 1]);
         double omega = dnrm2(divfreevor[tid]);
-/*        target[2 * tid + 1].x = (1 - factor) * target[2 * tid + 1].x + factor * (alpha_p / omega) * divfreevor[tid].x;
+        target[2 * tid + 1].x = (1 - factor) * target[2 * tid + 1].x + factor * (alpha_p / omega) * divfreevor[tid].x;
         target[2 * tid + 1].y = (1 - factor) * target[2 * tid + 1].y + factor * (alpha_p / omega) * divfreevor[tid].y;
         target[2 * tid + 1].z = (1 - factor) * target[2 * tid + 1].z + factor * (alpha_p / omega) * divfreevor[tid].z;
-*/      target[2 * tid + 1].x = target[2 * tid + 1].w * divfreevor[tid].x;
-        target[2 * tid + 1].y = target[2 * tid + 1].w * divfreevor[tid].y;
-        target[2 * tid + 1].z = target[2 * tid + 1].w * divfreevor[tid].z;
-        if(tid==0)
-            printf("divfree omega = %10.5e, %10.5e, %10.5e;\n divfree alpha = %10.5e, %10.5e, %10.5e \n",
-                   divfreevor[tid].x,divfreevor[tid].y,divfreevor[tid].z,target[2 * tid + 1].x,target[2 * tid + 1].y,target[2 * tid + 1].z);
     }
 }
 void divfreed3Todarr(double *divfreeArr,const double3 *divfreeD3,size_t N, size_t &stepnum){
@@ -436,6 +598,10 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     auto tStart = std::chrono::high_resolution_clock::now();
     OPawanRecvData opawanrecvdata; OPawanSendData opawansenddata;
     networkCommunicatorTest->getrecieveBuffer(opawanrecvdata);
+    int xrelax = opawanrecvdata.xrelax;
+    int xsavepart = opawanrecvdata.xsavepart;
+    int xsavegrid = opawanrecvdata.xsavegrid;
+    double deltat = opawanrecvdata.deltat;
     _t = opawanrecvdata.t;
     _dt = opawanrecvdata.deltat;
     printf("_dt = %f \n", _dt);
@@ -443,12 +609,16 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     //for time-integration
     cudaStream_t integrateStream; cudaStreamCreate(&integrateStream); //not useful right now
     int maxnumberOfParticles = S->totalmaxParticles();
+    size_t part_memsizei = maxnumberOfParticles * sizeof(int);
     size_t part_memsized4 = maxnumberOfParticles * 2 * sizeof(double4);
     size_t part_memsized3 = maxnumberOfParticles * 2 * sizeof(double3);
     double4 *gpuSource, *gpuTarget, *cpuBuffer;
+    int *cpuage, *gpuage;
     checkGPUError(cudaMallocHost(&cpuBuffer, part_memsized4));//pinned memory buffer on the cpu
     checkGPUError(cudaMalloc(&gpuSource, part_memsized4));
     checkGPUError(cudaMalloc(&gpuTarget, part_memsized4));
+    cpuage = (int*) malloc(part_memsizei);
+    checkGPUError(cudaMalloc(&gpuage, part_memsizei));
     double4 *x1, *x2, *x3;
     double3 *k1, *k2, *k3, *k4;
     checkGPUError(cudaMalloc(&x1, part_memsized4));checkGPUError(cudaMalloc(&x2, part_memsized4));checkGPUError(cudaMalloc(&x3, part_memsized4));
@@ -476,7 +646,7 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     //inflow evaluation at each airsta
     int NbOfLfnLines = opawanrecvdata.NbOfLfnLines;
     int *NbOfAst = opawanrecvdata.NbOfAst;
-    double *astpos;
+    double *astpos, *circ;
     int totalAirSta=0;
     for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn)
         totalAirSta += NbOfAst[ilfn];
@@ -484,8 +654,14 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     double *lambda;
     checkGPUError(cudaMallocHost(&lambda, totalAirSta * 3 *sizeof(double)));
     double3 *lambda_gpu, *airStaPos_gpu;
+    double *circ_gpu, *totalAirSta_gpu;
+    int *NbOfAst_gpu;
     checkGPUError(cudaMalloc(&lambda_gpu, totalAirSta*sizeof(double3)));
     checkGPUError(cudaMalloc(&airStaPos_gpu, totalAirSta*sizeof(double3)));
+    checkGPUError(cudaMalloc(&circ_gpu, totalAirSta*sizeof(double)));
+    checkGPUError(cudaMalloc(&totalAirSta_gpu, sizeof(double)));
+    checkGPUError(cudaMemcpy(totalAirSta_gpu,&totalAirSta,sizeof(double),cudaMemcpyHostToDevice));
+    checkGPUError(cudaMalloc(&NbOfAst_gpu, NbOfLfnLines*sizeof(int)));
     size_t airStaThreadBlocks = (totalAirSta + threadBlockSize - 1) / threadBlockSize;
 
     //particle SZL file
@@ -520,54 +696,19 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
         OUT("\tStepNum",stepnum);
         printf("_dt = %f \n", _dt);
         astpos = opawanrecvdata.astpos;
+        circ = opawanrecvdata.circ;
         checkGPUError(cudaMemcpy(airStaPos_gpu,astpos,totalAirSta*sizeof(double3),cudaMemcpyHostToDevice));
+        checkGPUError(cudaMemcpy(circ_gpu,circ,totalAirSta*sizeof(double),cudaMemcpyHostToDevice));
+        checkGPUError(cudaMemcpy(NbOfAst_gpu,NbOfAst,NbOfLfnLines*sizeof(int),cudaMemcpyHostToDevice));
 
-        S->getParticles(reinterpret_cast<double *>(cpuBuffer));
+        //if(opawanrecvdata.bndvorincl)
+        //    S->updateBoundVorEffect(&opawanrecvdata,_dt,stepnum);
+        S->getParticles(reinterpret_cast<double *>(cpuBuffer),cpuage,stepnum);
         checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,part_memsized4,cudaMemcpyHostToDevice));
+        checkGPUError(cudaMemcpy(gpuage,cpuage,part_memsizei,cudaMemcpyHostToDevice));
         numberOfParticles = S->amountParticles();
         partThreadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
-        printf("\tnumberOfParticles = %10d",numberOfParticles);
-
-        //stepKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, k1,numberOfParticles,S->getNu(), _dt);//k1 dummy here
-        rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, partThreadBlocks);
-        //divfreevorKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, divfreevor_gpu, numberOfParticles);
-        //relaxKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, divfreevor_gpu, numberOfParticles);
-        //checkGPUError(cudaMemcpy(cpuBuffer,gpuTarget,mem_size,cudaMemcpyDeviceToHost));
-        //S->setParticles(reinterpret_cast<double *>(cpuBuffer));
-
-        int transient_steps = opawanrecvdata.transientsteps;
-        if (stepnum < transient_steps) {
-            printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
-            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 35 * (transient_steps - stepnum) / transient_steps;
-            printf("Vinf + suppress = %3.2e, %3.2e, %3.2e", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1],
-                   opawanrecvdata.Vinf[2]);
-        }
-
-        checkGPUError(cudaMemcpy(Vinf_gpu,opawanrecvdata.Vinf,sizeof(double3),cudaMemcpyHostToDevice));
-                                                        //checkGPUError(cudaMemcpy(gpuTarget,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
-        updateVinfKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, numberOfParticles, Vinf_gpu, _dt);
-        checkGPUError(cudaMemcpy(cpuBuffer, gpuTarget, part_memsized4, cudaMemcpyDeviceToHost));
-        S->setParticles(reinterpret_cast<double *>(cpuBuffer));
-        //S->updateBoundVorEffect(&opawanrecvdata,_dt);
-        //S->split(stepnum);
-        //S->merge(stepnum);
-        if(stepnum%5==0) { //write every n time steps only
-            S->getParticles_arr(pWake);
-            writePartSZL(fileWakeHandle, pWake, _t, numberOfParticles);
-
-            /* checkGPUError(cudaMemcpy(divfreevor,divfreevor_gpu,maxnumberOfParticles * sizeof(double3),cudaMemcpyDeviceToHost));
-             divfreed3Todarr(divfreevorarr,divfreevor,numberOfParticles,stepnum);
-             writePartDivFreeSZL(fileWakeDivFreeHandle,divfreevorarr,pWake,_t,numberOfParticles);
-             */
-        }
-        if(stepnum%10==0) { //write every n time steps only
-            gridSolKernel<threadBlockSize, unrollFactor><<<gridThreadBlocks, threadBlockSize, 0, integrateStream >>>(
-                    gridSol_gpu, gpuTarget, numberOfParticles, Nnodes);
-            checkGPUError(cudaMemcpy(gridSol, gridSol_gpu, gridSol_memsized3, cudaMemcpyDeviceToHost));
-            gridSold3Todarr(gridSolarr, gridSol, Nnodes, stepnum);
-            writeGridSolSZL(fileGridSolHandle, gridSolarr, _t, stepnum, Nnodes, xdim, ydim, zdim);
-        }
-
+        printf("\tnumberOfParticles = %10d \n",numberOfParticles);
         int astidx=0;
         double3 airStaPosSingle;
         for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
@@ -576,7 +717,7 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
                 airStaPosSingle.y = astpos[astidx*3 +1];
                 airStaPosSingle.z = astpos[astidx*3 +2];
                 lambda[astidx*3] = 0; lambda[astidx*3 +1] = 0; lambda[astidx*3 +2] = 0;
-                inflowEvalKernelRed<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 2*threadBlockSize*sizeof(double3), integrateStream >>>(lambda+astidx*3, airStaPosSingle, gpuTarget, numberOfParticles);
+                inflowEvalKernelRed<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 2*threadBlockSize*sizeof(double3), integrateStream >>>(lambda+astidx*3, airStaPosSingle, gpuSource, numberOfParticles);
                 astidx++;
             }
         }
@@ -587,11 +728,85 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
                 opawansenddata.lambda[astidx * 3    ] = lambda[astidx * 3    ];  //comment this for elliptical wing case
                 opawansenddata.lambda[astidx * 3 + 1] = lambda[astidx * 3 + 1];
                 opawansenddata.lambda[astidx * 3 + 2] = lambda[astidx * 3 + 2];
-                printf("lambda = %+10.5e, %+10.5e, %+10.5e \n",
-                       lambda[astidx * 3], lambda[astidx * 3 + 1], lambda[astidx * 3 + 2]);
+                if(opawanrecvdata.bndvorbndvorint) {    //bound vortex-bound vortex effect included (only needed for UT Austin rotor)
+                    S->updateBoundVorBoundVorEffectVind(&opawanrecvdata, &opawansenddata, astidx, ilfn);
+                }
+                //printf("lambda       = %+10.5e, %+10.5e, %+10.5e \n",
+                //       opawansenddata.lambda[astidx * 3], opawansenddata.lambda[astidx * 3 + 1], opawansenddata.lambda[astidx * 3 + 2]);
                 astidx++;
             }
         }
+
+        //stepKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, k1,numberOfParticles,S->getNu(), _dt);//k1 dummy here
+        rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,gpuage,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, partThreadBlocks);
+        if(opawanrecvdata.relax) {
+            if (stepnum % xrelax == 0 && stepnum > 0) {
+                printf("relax!!!-----------------\n");
+                divfreevorKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(
+                        gpuTarget, divfreevor_gpu, numberOfParticles);
+                relaxKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(
+                        gpuTarget, divfreevor_gpu, numberOfParticles);
+                /*checkGPUError(cudaMemcpy(divfreevor,divfreevor_gpu,maxnumberOfParticles * sizeof(double3),cudaMemcpyDeviceToHost));
+                divfreed3Todarr(divfreevorarr,divfreevor,numberOfParticles,stepnum);
+                writePartDivFreeSZL(fileWakeDivFreeHandle,divfreevorarr,pWake,_t,numberOfParticles);
+           */
+            }
+        }
+        int transient_steps = opawanrecvdata.transientsteps;
+        if (stepnum < transient_steps) {
+            printf("Vinf = %3.2e, %3.2e, %3.2e \n", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1], opawanrecvdata.Vinf[2]);
+            opawanrecvdata.Vinf[2] = opawanrecvdata.Vinf[2] + 10.0 * (transient_steps - stepnum) / transient_steps;
+            printf("Vinf + suppress = %3.2e, %3.2e, %3.2e", opawanrecvdata.Vinf[0], opawanrecvdata.Vinf[1],
+                   opawanrecvdata.Vinf[2]);
+        }
+
+        if(opawanrecvdata.bndvorincl) {
+            printf("incl bound vor vind effect ---------------- \n");
+            boundVorVindKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, airStaPos_gpu, numberOfParticles, circ_gpu,
+                                                                                                                          NbOfLfnLines, NbOfAst_gpu, _dt);
+            /*printf("incl bound vor stretch effect ---------------- \n");
+            boundVorStretchKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, airStaPos_gpu, numberOfParticles, circ_gpu,
+                                                                                                                          NbOfLfnLines, NbOfAst_gpu, _dt);
+            */cudaDeviceSynchronize();
+        }
+
+        printf("update Vinf-------- \n");
+        checkGPUError(cudaMemcpy(Vinf_gpu,opawanrecvdata.Vinf,sizeof(double3),cudaMemcpyHostToDevice));
+        updateVinfKernel<threadBlockSize, unrollFactor><<<partThreadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, numberOfParticles, Vinf_gpu, _dt);
+        checkGPUError(cudaMemcpy(cpuBuffer, gpuTarget, part_memsized4, cudaMemcpyDeviceToHost));
+        S->setParticles(reinterpret_cast<double *>(cpuBuffer));
+
+        //if(stepnum % xsavepart==0 || (opawanrecvdata.tfinal - 2*opawanrecvdata.deltat)<=_t) { //write every n time steps only (|| (opawanrecvdata.tfinal-_t)/_dt<540)
+        if(stepnum % xsavepart==0 ||  (opawanrecvdata.tfinal-_t)/_dt<=1250) { //write every n time steps only (|| (opawanrecvdata.tfinal-_t)/_dt<540)
+            printf("writing particles szl file-------- \n");
+            S->getParticles_arr(pWake);
+            writePartSZL(fileWakeHandle, pWake, _t, numberOfParticles);
+        }
+
+        //if(stepnum % xsavegrid==0  || (opawanrecvdata.tfinal - 2*opawanrecvdata.deltat)<=_t) { //write every n time steps or every step for last revolution ( || (opawanrecvdata.tfinal-_t)/_dt<540)
+        if(stepnum % xsavegrid==0  ||  (opawanrecvdata.tfinal-_t)/_dt<=1250) { //write every n time steps or every step for last revolution ( || (opawanrecvdata.tfinal-_t)/_dt<540)
+            printf("writing gridsol szl file-------- \n");
+            gridSolKernel<threadBlockSize, unrollFactor><<<gridThreadBlocks, threadBlockSize, 0, integrateStream >>>(
+                    gridSol_gpu, gpuTarget, numberOfParticles, Nnodes);
+            checkGPUError(cudaMemcpy(gridSol, gridSol_gpu, gridSol_memsized3, cudaMemcpyDeviceToHost));
+            gridSold3Todarr(gridSolarr, gridSol, Nnodes, stepnum);
+            writeGridSolSZL(fileGridSolHandle, gridSolarr, _t, stepnum, Nnodes, xdim, ydim, zdim);
+        }
+/*        if((opawanrecvdata.tfinal-_t)/_dt<3600){
+            if(stepnum%9==-1) {
+                printf("writing particles szl file & gridsol szl file-------- \n");
+                S->getParticles_arr(pWake);
+                writePartSZL(fileWakeHandle, pWake, _t, numberOfParticles);
+                gridSolKernel<threadBlockSize, unrollFactor><<<gridThreadBlocks, threadBlockSize, 0, integrateStream >>>(
+                        gridSol_gpu, gpuTarget, numberOfParticles, Nnodes);
+                checkGPUError(cudaMemcpy(gridSol, gridSol_gpu, gridSol_memsized3, cudaMemcpyDeviceToHost));
+                gridSold3Todarr(gridSolarr, gridSol, Nnodes, stepnum);
+                writeGridSolSZL(fileGridSolHandle, gridSolarr, _t, stepnum, Nnodes, xdim, ydim, zdim);
+            }
+        }
+*/
+        S->split(stepnum);
+        //S->merge(stepnum);
         networkCommunicatorTest->send_data(opawansenddata);
         stepnum = stepnum+1;
         if(_t <= (opawanrecvdata.tfinal - 1*opawanrecvdata.deltat)){
@@ -640,9 +855,11 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     //one pinned memory buffer on the cpu for copying states back
     int numberOfParticles = S->amountParticles();
     int maxnumberOfParticles = S->totalmaxParticles();
+    size_t part_memsizei = maxnumberOfParticles * sizeof(int);
     size_t mem_size = maxnumberOfParticles * 2 * sizeof(double4);
     size_t mem_sized3 = maxnumberOfParticles * 2 * sizeof(double3);
     double4 *gpuSource, *gpuTarget, *cpuBuffer;
+    int *cpuage, *gpuage;
     double3 *rates;
     double3 *divfreevor;
     checkGPUError(cudaMallocHost(&cpuBuffer, mem_size));
@@ -650,6 +867,8 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     checkGPUError(cudaMalloc(&gpuTarget, mem_size));
     checkGPUError(cudaMalloc(&rates, mem_sized3));
     checkGPUError(cudaMalloc(&divfreevor, maxnumberOfParticles * sizeof(double3)));
+    cpuage = (int*) malloc(part_memsizei);
+    checkGPUError(cudaMalloc(&gpuage, part_memsizei));
     double4 *x1, *x2, *x3;
     double3 *k1, *k2, *k3, *k4;
     checkGPUError(cudaMalloc(&x1, mem_size));checkGPUError(cudaMalloc(&x2, mem_size));checkGPUError(cudaMalloc(&x3, mem_size));
@@ -658,8 +877,9 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     checkGPUError(cudaMallocHost(&totalDiag, 20*sizeof(double)));
 
     //Transfer particles to GPU
-    S->getParticles(reinterpret_cast<double *>(cpuBuffer));
+    S->getParticles(reinterpret_cast<double *>(cpuBuffer),cpuage,0); //here particle age is not really relevant, it'll be zero in any case
     checkGPUError(cudaMemcpy(gpuSource,cpuBuffer,mem_size,cudaMemcpyHostToDevice));
+    checkGPUError(cudaMemcpy(gpuage,cpuage,part_memsizei,cudaMemcpyHostToDevice));
 
     size_t threadBlocks = (numberOfParticles + threadBlockSize - 1) / threadBlockSize;
     std::string szlfilename = IO->getSzlWakeFile();
@@ -692,8 +912,8 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
         //if not in the last step, start the next one
         if(i < _n) {
             OUT("\tStep", i);
-            //stepKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, rates,numberOfParticles,S->getNu(), _dt);
-            rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, threadBlocks);
+            //stepKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuSource, gpuTarget, rates,gpuage,numberOfParticles,S->getNu(), _dt);
+            rk4Step<threadBlockSize, unrollFactor>(gpuSource,gpuTarget,gpuage,numberOfParticles,S->getNu(), _dt, x1, x2, x3, k1, k2, k3, k4, integrateStream, threadBlocks);
             divfreevorKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, divfreevor, numberOfParticles);
             relaxKernel<threadBlockSize, unrollFactor><<<threadBlocks, threadBlockSize, 0, integrateStream >>>(gpuTarget, divfreevor, numberOfParticles);
             cudaDeviceSynchronize();
@@ -741,5 +961,3 @@ void pawan::gpu_int<threadBlockSize,unrollFactor>::integrate(pawan::__system *S,
     checkGPUError(cudaFree(x1));checkGPUError(cudaFree(x2));checkGPUError(cudaFree(x3));
     checkGPUError(cudaFree(k1));checkGPUError(cudaFree(k2));checkGPUError(cudaFree(k3));checkGPUError(cudaFree(k4));
 }
-
-

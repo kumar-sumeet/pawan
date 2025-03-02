@@ -47,7 +47,7 @@ void copyRatesFromGPU(double3 *ratesGPU, size_t size, const std::vector<pawan::_
  * @param retVorticity reference to store resulting rate
  */
  template<int threadBlockSize = 128, int unrollFactor = 1>
-__device__ inline void interact_with_all(const double4 *particles, const size_t N, const double nu, const double4 &position,
+__device__ inline void interact_with_all(const double4 *particles, int source_age, const size_t N, const double nu, const double4 &position,
                                          const double4 &vorticity, const size_t index, double3 &velocity,
                                          double3 &retVorticity) {
     __shared__ double4 sharedParticles[2 * threadBlockSize];
@@ -69,7 +69,7 @@ __device__ inline void interact_with_all(const double4 *particles, const size_t 
             for(int j = 0; j < threadBlockSize; j++){
 
                 if(! (blockIdx.x == i && threadIdx.x == j) ) //skip interaction with yourself, as the interact function can not handle it
-                    INTERACT_GPU(nu, position, sharedParticles[2 * j], vorticity,
+                    INTERACT_GPU(nu, source_age, position, sharedParticles[2 * j], vorticity,
                                  sharedParticles[2*j + 1], velocity, retVorticity);
             }
         }
@@ -92,7 +92,7 @@ __device__ inline void interact_with_all(const double4 *particles, const size_t 
         for (int j = 0; j < remainingParticles; j++) {
 
             if(! (blockIdx.x == fullIters && threadIdx.x == j) ) //skip interaction with yourself, as the interact function can not handle it
-                INTERACT_GPU(nu, position, sharedParticles[2 * j], vorticity,
+                INTERACT_GPU(nu, source_age, position, sharedParticles[2 * j], vorticity,
                              sharedParticles[2*j + 1], velocity, retVorticity);
         }
     }
@@ -355,6 +355,44 @@ __device__ inline void gridSol_contrib_all(const double4 *particles,
         GRIDSOL_GPU(nodePos, sharedParticles[2 * j], sharedParticles[2 * j + 1], nodeVel, nodeVor);
     }
 }
+/*template<int threadBlockSize = 128, int unrollFactor = 1>
+__device__ inline void boundVorVind_contrib_all(const double3 *airStaPos,
+                                        const double *circ,
+                                        const size_t NairSta,
+                                        double4 partposition) {
+    __shared__ double4 sharedAirstations[threadBlockSize];
+
+    size_t fullIters = NairSta/threadBlockSize;
+    size_t airstaLoadPos = threadIdx.x;
+
+    for(int i = 0; i < fullIters; i++, airstaLoadPos += threadBlockSize){
+        sharedAirstations[threadIdx.x].x = airStaPos[airstaLoadPos].x;
+        sharedAirstations[threadIdx.x].y = airStaPos[airstaLoadPos].y;
+        sharedAirstations[threadIdx.x].z = airStaPos[airstaLoadPos].z;
+        sharedAirstations[threadIdx.x].w = circ[airstaLoadPos];
+
+        __syncthreads();
+
+        #pragma unroll unrollFactor
+        for (int j = 0; j < threadBlockSize; j++) {
+            BOUNDVORVIND_GPU(nodePos, sharedAirstations[j], sharedAirstations[j + 1], nodeVel, nodeVor);
+        }
+        __syncthreads();
+    }
+
+    if(airstaLoadPos < NairSta) {
+        sharedAirstations[threadIdx.x] = particles[airstaLoadPos];
+        sharedAirstations[threadIdx.x + 1] = particles[airstaLoadPos + 1];
+    }
+
+    __syncthreads();
+
+    size_t remainingParticles = Npart % threadBlockSize;
+    #pragma unroll unrollFactor
+    for (int j = 0; j < remainingParticles; j++) {
+        BOUNDVORVIND_GPU(nodePos, sharedAirstations[j], sharedAirstations[j + 1], nodeVel, nodeVor);
+    }
+}*/
 
 template<int threadBlockSize = 128, int unrollFactor = 1>
 __device__ inline void inflow_contrib_all(const double4 *particles,

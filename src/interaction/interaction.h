@@ -246,7 +246,7 @@ class __interaction : public __system{
 
         //For gpu code
         void setParticles(double *particles) override;
-        void getParticles(double *particles) override;
+        void getParticles(double *particles,int *age, size_t stepnum) override;
         void getParticles_arr(double *particles) override;
         int amountParticles() override;
         int totalmaxParticles() override;
@@ -259,8 +259,10 @@ class __interaction : public __system{
 		virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
         //! translate particles with Vinf
         virtual void updateVinfEffect(const double *Vinf,double &dt);
+        //effect of vi due to bound-bound vortex interactions
+        virtual void updateBoundVorBoundVorEffectVind(PawanRecvData pawanrecvdata,PawanSendData pawansenddata,int astidx, int lfnidx);
         //! translate particles due to induced vel from bound vortices
-        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt);
+        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum);
         //! get induced due to all wake particles at each airstation
         virtual void getInflow(PawanRecvData pawanrecvdata, PawanSendData pawansenddata);
         //! get velocity induced due to all wake particles at a given location

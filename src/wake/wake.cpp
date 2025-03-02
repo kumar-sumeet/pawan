@@ -61,7 +61,7 @@ pawan::__wake::__wake(){
 void pawan::__wake::split(size_t &stepnum){
 
     //split particles only after a certain age
-    for(size_t i = 0; i<_numParticles && stepnum-gsl_vector_get(_active,i)>45; ++i){
+    for(size_t i = 0; i<_numParticles && stepnum-gsl_vector_get(_active,i)>1; ++i){
         double ibirthstrength = gsl_vector_get(_birthstrength,i);
         gsl_vector_view ivor = gsl_matrix_row(_vorticity,i);
         double ivormag = gsl_blas_dnrm2(&ivor.vector);
@@ -105,6 +105,7 @@ void pawan::__wake::split(size_t &stepnum){
                 _numParticles = _npidx;
         }
     }
+    printf("\n");
     //_numParticles = _numParticles + npsplit;
     _size = 2*_numParticles*3;
 }
@@ -156,6 +157,7 @@ void pawan::__wake::merge(size_t &stepnum){
             gsl_vector_free(displacement);
         }
     }
+    printf("\n");
 }
 
 void pawan::__wake::getlfnvec(double* vec,
@@ -169,7 +171,7 @@ void pawan::__wake::getlfnvec(double* vec,
         vec[i] = mat[offset + rowsize * i + axis];
     }
 }
-
+/*!
 void pawan::__wake::addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum){
     OUT("_numParticles",_numParticles);
     OUT("_npidx",_npidx);
@@ -359,14 +361,14 @@ void pawan::__wake::addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum)
                     //    alphai = trailvormag * hres * stepnum / transientsteps;
 
                     //alphai = trailvormag*hres* ista/(0.2*(spanres + 1));
-                    alphai = trailvormag * hres * 0.1;
+                    //alphai = trailvormag * hres * 0.1;
                 } else
                     alphai = trailvormag * hres;
             } else
                 alphai = trailvormag * hres;
 
             voli = 0.05 * hres;   //ip: not entirely sure about this (is this an empirical parameter??)
-
+            //voli = (4.0*M_PI/3.0) * hres*hres*hres;
             num_part = (int) (del_teposmag / hres);  //number of particles behind each ista
             if (trailvor){
                 for (int jsta = int(dontaddTEpart); jsta <= num_part; ++jsta) {
@@ -505,10 +507,15 @@ void pawan::__wake::addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum)
         free(astvelx_lfn);free(astvely_lfn);free(astvelz_lfn);
     }
     _size = 2*_numParticles*3;
-}
+}*/
 void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
+    printf("\t adding particles..... \n");
     OUT("_numParticles",_numParticles);
     OUT("_npidx",_npidx);
+    char *dymfilename = pawanrecvdata->Dymfilename;
+    int ccr=0;  //whether it is a ccr case
+    if(strstr(dymfilename,"ccr") != NULL)
+        ccr=1;
     double *Vinf = pawanrecvdata->Vinf;
     int NbOfLfnLines = pawanrecvdata->NbOfLfnLines;
     int *NbOfAst = pawanrecvdata->NbOfAst;
@@ -516,10 +523,12 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
     int trailvor = pawanrecvdata->trailvor;
     int shedvor = pawanrecvdata->shedvor;
     int suprootvor = pawanrecvdata->suprootvor;
+    if (suprootvor)
+        printf("\t suppressing root vortex..... \n");
     int transientsteps = pawanrecvdata->transientsteps;
     int infl2D = pawanrecvdata->infl2D;
-    //int spanres = pawanrecvdata->spanres;
-    int spanres = 10;  //number of particles over the span of a lfnline
+    int spanres = pawanrecvdata->spanres;//number of particles over the span of a lfnline
+    //int spanres = 20;
     double acrossa = pawanrecvdata->acrossa;
     double deltat = pawanrecvdata->deltat;
     double *spandisc = pawanrecvdata->span_disc;
@@ -626,7 +635,7 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                 spandisc_peakcirc_lfn = spandisc_lfn[i];
             }
         }
-
+        printf("++++++++ Peak circ at : %8.3e ++++++ \n", spandisc_peakcirc_lfn);
         hres = lfnlen[ilfn] / spanres;
         sigma = 1.3 * hres;
 
@@ -673,6 +682,7 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
 
             //assuming only a single peak in the circulation distribution for now
             //magnitude and sign of trail vortices
+            trailvormag=0.0;
             if ((double) ista / spanres <= spandisc_peakcirc_lfn && ista != 0)
                 trailvormag = -(gsl_spline_eval(circ_spline, ista * (1. / spanres), accel_ptr)
                                 - gsl_spline_eval(circ_spline, (ista - 1) * (1. / spanres), accel_ptr));
@@ -680,29 +690,34 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                 trailvormag = gsl_spline_eval(circ_spline, ista * (1. / spanres), accel_ptr)
                               - gsl_spline_eval(circ_spline, (ista + 1) * (1. / spanres), accel_ptr);
 
-            if (ista == 0)
+            /*if (ista == 0)
                 trailvormag = -circ_lfn[0];//if beginning (from root) of a new lfnline
             //clockwise vortex when looking from behind is -ve
             if (ista == spanres)
                 trailvormag = circ_lfn[NbOfAst[ilfn] - 1];//last airstation gives anticlockwise vortex
             //anticlockwise vortex is +ve
+*/
+            if(ccr==1 && ilfn>1) //hard coded for the ccr case (for anticlockwise rotor vorticity direction is reversed)
+                trailvormag = -trailvormag;
 
             alphai_trail = 0.0;
             if (suprootvor) {//suppressing effect of root vortices (avoid fountain effect in hover)
-                if (ista < 0.15 * (spanres + 1)) {
-                    if (stepnum < transientsteps)
-                        //    alphai = trailvormag * hres * stepnum / transientsteps;
-                        alphai_trail = trailvormag * hres *(transientsteps - stepnum) / transientsteps;
-                        //alphai = trailvormag*hres* ista/(0.2*(spanres + 1));
-                        //alphai_trail = trailvormag * hres * 0.1;
+                if (ista < 0.5 * (spanres + 1)) {
+                //if((float)(ista/(spanres + 1))<spandisc_peakcirc_lfn){
+                    if (stepnum < transientsteps) {
+                        alphai_trail = trailvormag * hres * stepnum / transientsteps;
+                        //alphai_trail = trailvormag*hres* ista/(0.2*(spanres + 1));
+                        //alphai_trail = trailvormag*hres*0.3;
+                    }
                     else
+                        //alphai_trail = trailvormag*hres*0.3;
                         alphai_trail = trailvormag * hres;
                 } else
                     alphai_trail = trailvormag * hres;
             } else
                 alphai_trail = trailvormag * hres;
 
-            voli = 0.05 * hres;   //ip: not entirely sure about this (is this an empirical parameter??)
+            voli = hres * hres * hres;   //ip: not entirely sure about this (is this an empirical parameter??)
             for (int k = 0; k < 3; ++k)
                 vorticity_net[k] = trailvor * localflowdir[k] * alphai_trail;
             if (shedvor) {
@@ -746,7 +761,7 @@ void pawan::__wake::addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){
                 gsl_vector_set(_radius, _npidx, sigma);
                 gsl_vector_set(_volume, _npidx, voli);
                 gsl_vector_set(_birthstrength, _npidx, alphai);
-                gsl_vector_set(_active, _npidx, stepnum);//unsused for now
+                gsl_vector_set(_active, _npidx, stepnum);
                 gsl_vector_set(_lastsectpartnpidx, sectidx, _npidx);
                 if (_npidx == 0)
                     printf("First particle created at : %8.3e, %8.3e, %8.3e \n", vorpos[0], vorpos[1],
@@ -828,8 +843,145 @@ void pawan::__wake::updateVinfEffect(const double *Vinf, double &dt){
     }
 }
 
-void pawan::__wake::BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt){
-    printf("---------------- incl bound vor effect ");
+void pawan::__wake::updateBoundVorBoundVorEffectVind(PawanRecvData pawanrecvdata, PawanSendData pawansenddata, int astidx0, int lfnidx0){
+    //printf("incl bound vor - bound vor effect ----------------  \n");
+    //printf("astidx0 = %d, lfnidx0= %d\n",astidx0,lfnidx0);
+    int NbOfLfnLines = pawanrecvdata->NbOfLfnLines;
+    int *NbOfAst = pawanrecvdata->NbOfAst;
+    double *astpos = pawanrecvdata->astpos;
+    double *circ = pawanrecvdata->circ;
+
+    double *lambda = pawansenddata->lambda;
+
+    gsl_vector *rast = gsl_vector_calloc(3);//airstation where ind vel is evaluated
+    gsl_vector *vb = gsl_vector_calloc(3);//ind vel due to all panels
+    gsl_vector *Si = gsl_vector_calloc(3);
+    gsl_vector *rast1 = gsl_vector_calloc(3);
+    gsl_vector *rast2 = gsl_vector_calloc(3);
+    gsl_vector *rast12 = gsl_vector_calloc(3);
+    gsl_vector *rast1r = gsl_vector_calloc(3);
+    gsl_vector *licap = gsl_vector_calloc(3);
+    gsl_vector *sicap = gsl_vector_calloc(3);
+    gsl_vector *rast2r = gsl_vector_calloc(3);
+    gsl_vector *vbi = gsl_vector_calloc(3);  //ind vel due to one panel
+    double t,span,simag,alpha,beta;
+    double circ1, circ2, gamma0, gamma1;
+    double factor;
+
+    gsl_vector_set_zero(vb);
+    for (int i = 0; i < 3; ++i) {
+        gsl_vector_set(rast, i, astpos[3 * astidx0 + i]);
+    }
+
+    int astidx_low=0;
+    for (size_t ilfn = 0; ilfn < lfnidx0; ++ilfn) {
+        astidx_low += NbOfAst[ilfn];
+    }
+    int astidx_up = astidx_low+NbOfAst[lfnidx0];
+    int astidx=0;
+
+    //printf("astidx_low = %d, astidx_up= %d\n",astidx_low,astidx_up);
+    for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
+        for (size_t iast = 0; iast < NbOfAst[ilfn] - 1; ++iast) {
+            if(astidx < astidx_low || astidx >= astidx_up ) { //ignore airstations on same lfnline
+                for (int j = 0; j < 3; ++j) {
+                    gsl_vector_set(rast1, j, astpos[3 * astidx + j]);
+                    gsl_vector_set(rast2, j, astpos[3 * (astidx + 1) + j]);
+                }
+
+                gsl_vector_memcpy(rast12, rast2);
+                gsl_vector_sub(rast12, rast1);
+                span = gsl_blas_dnrm2(rast12); //blade element span
+                gsl_vector_memcpy(rast1r, rast);
+                gsl_vector_sub(rast1r, rast1);
+                gsl_blas_ddot(rast1r, rast12, &t);
+                t = t / (span * span);
+
+                gsl_vector_memcpy(Si, rast12);
+                gsl_blas_dscal(t, Si);
+                gsl_vector_add(Si, rast1);
+
+                gsl_vector_memcpy(licap, rast12);
+                gsl_blas_dscal(1 / span, licap);
+
+                gsl_vector_memcpy(sicap, rast);
+                gsl_vector_sub(sicap, Si);
+                simag = gsl_blas_dnrm2(sicap);
+                gsl_blas_dscal(1 / simag, sicap);
+
+                gsl_vector_memcpy(rast2r, rast);
+                gsl_vector_sub(rast2r, rast2);
+                //double alpha = 0.0;
+                gsl_blas_ddot(rast2r, rast12, &alpha);
+                alpha = acos(-alpha / gsl_blas_dnrm2(rast2r) / span);
+                //double beta = 0.0;
+                gsl_blas_ddot(rast1r, rast12, &beta);
+                beta = acos(beta / gsl_blas_dnrm2(rast1r) / span);
+
+                circ1 = circ[astidx];
+                circ2 = circ[astidx + 1];
+                //t can be -ve
+                gamma0 = (circ1 * fabs(span * (1 - t)) + circ2 * fabs(t * span)) / (span * span);
+                gamma1 = (circ2 - circ1) / span;
+                gsl_cross(licap, sicap, vbi);
+                gsl_blas_dscal(0.25 * M_1_PI / simag, vbi);
+                factor = 0.5 * span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
+                gsl_blas_dscal(factor, vbi);
+
+                gsl_vector_add(vb, vbi);
+                //printf("%4d,",astidx);
+            }
+            astidx++;
+        }
+        astidx++; //skip the ast at the end of the lfn
+    }
+    //printf("\n");
+    //printf("lambda initial = %+10.5e, %+10.5e, %+10.5e \n",
+    //       lambda[astidx0 * 3], lambda[astidx0 * 3 + 1], lambda[astidx0 * 3 + 2]);
+    /*double time = pawanrecvdata->t;
+    double num;
+    double denom;
+    double mean;
+    double ct;
+    double infl_zone = 45.0;
+    double delta_time = (1.0/15.0)*(0.5*infl_zone/360.0);
+    double gaussian=0.0;
+    for(size_t rev = 0; rev < 15; ++rev) {
+        for(size_t pass=0; pass<4; ++pass){
+            ct = 0.1 + rev*0.066666 + pass*0.25*0.066666;
+            if (time >= ct - delta_time && time < ct + delta_time) {
+                mean = 0.1 + rev * 0.066666 + pass*0.25*0.066666;
+                num = -(time - mean)*(time - mean);
+                denom = 2*15*15*(360/infl_zone)*(360/infl_zone)*3*3*2*2; //30 degree zone of influence about blade passage
+                gaussian=exp(num/denom);
+                rev = 15;
+                pass = 4;
+                break;
+            }
+        }
+    }
+    gsl_blas_dscal(gaussian,vb);*/
+    for (size_t k = 0; k < 3; ++k) {
+        lambda[astidx0*3 + k] += gsl_vector_get(vb, k);
+    }
+    //printf("delta lambda = %+10.5e, %+10.5e, %+10.5e \n",
+    //       gsl_vector_get(vb, 0), gsl_vector_get(vb, 1), gsl_vector_get(vb, 2));
+
+    gsl_vector_free(vb);
+    gsl_vector_free(Si);
+    gsl_vector_free(rast1);
+    gsl_vector_free(rast2);
+    gsl_vector_free(rast12);
+    gsl_vector_free(rast1r);
+    gsl_vector_free(licap);
+    gsl_vector_free(sicap);
+    gsl_vector_free(rast2r);
+    gsl_vector_free(vbi);
+}
+
+void pawan::__wake::BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum){
+    int bndvorinclnsteps = pawanrecvdata->bndvorinclnsteps;
+    printf("incl bound vor vind effect ---------------- upto %d steps \n", bndvorinclnsteps);
     int NbOfLfnLines = pawanrecvdata->NbOfLfnLines;
     int *NbOfAst = pawanrecvdata->NbOfAst;
     double *astpos = pawanrecvdata->astpos;
@@ -849,63 +1001,65 @@ void pawan::__wake::BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt){
     double circ1, circ2, gamma0, gamma1;
     double factor;
     for(int i = 0; i<_numParticles; ++i) {
-        gsl_vector_set_zero(vb);
-        gsl_vector_const_view r = gsl_matrix_const_row(_position, i);
-        int astidx = 0;
-        for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
-            for (size_t iast = 0; iast < NbOfAst[ilfn] - 2; ++iast) {
-                for (int j = 0; j < 3; ++j) {
-                    gsl_vector_set(rast1, j, astpos[3 * astidx + j]);
-                    gsl_vector_set(rast2, j, astpos[3 * (astidx + 1) + j]);
+        if(stepnum - gsl_vector_get(_active,i)<bndvorinclnsteps){ //only particles from the last ... steps affected by bound vortices
+            gsl_vector_set_zero(vb);
+            gsl_vector_const_view r = gsl_matrix_const_row(_position, i);
+            int astidx = 0;
+            for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
+                for (size_t iast = 0; iast < NbOfAst[ilfn] - 2; ++iast) {
+                    for (int j = 0; j < 3; ++j) {
+                        gsl_vector_set(rast1, j, astpos[3 * astidx + j]);
+                        gsl_vector_set(rast2, j, astpos[3 * (astidx + 1) + j]);
+                    }
+
+                    gsl_vector_memcpy(rast12, rast2);
+                    gsl_vector_sub(rast12, rast1);
+                    span = gsl_blas_dnrm2(rast12); //blade element span
+                    gsl_vector_memcpy(rast1r, &r.vector);
+                    gsl_vector_sub(rast1r, rast1);
+                    gsl_blas_ddot(rast1r, rast12, &t);
+                    t = t / (span * span);
+
+                    gsl_vector_memcpy(Si, rast12);
+                    gsl_blas_dscal(t, Si);
+                    gsl_vector_add(Si, rast1);
+
+                    gsl_vector_memcpy(licap, rast12);
+                    gsl_blas_dscal(1/span, licap);
+
+                    gsl_vector_memcpy(sicap, &r.vector);
+                    gsl_vector_sub(sicap, Si);
+                    simag = gsl_blas_dnrm2(sicap);
+                    gsl_blas_dscal(1/simag, sicap);
+
+                    gsl_vector_memcpy(rast2r, &r.vector);
+                    gsl_vector_sub(rast2r, rast2);
+                    //double alpha = 0.0;
+                    gsl_blas_ddot(rast2r, rast12, &alpha);
+                    alpha = acos(-alpha / gsl_blas_dnrm2(rast2r) / span);
+                    //double beta = 0.0;
+                    gsl_blas_ddot(rast1r, rast12, &beta);
+                    beta = acos(beta / gsl_blas_dnrm2(rast1r) / span);
+
+                    circ1 = circ[astidx];
+                    circ2 = circ[astidx + 1];
+                    //t can be -ve
+                    gamma0 = (circ1 * fabs(span * (1 - t)) + circ2 * fabs(t * span)) / (span * span);
+                    gamma1 = (circ2 - circ1) / span;
+                    gsl_cross(licap, sicap, vbi);
+                    gsl_blas_dscal(0.25 * M_1_PI / simag, vbi);
+                    factor = span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
+                    gsl_blas_dscal(factor, vbi);
+
+                    gsl_vector_add(vb, vbi);
+
+                    astidx++;
                 }
-
-                gsl_vector_memcpy(rast12, rast2);
-                gsl_vector_sub(rast12, rast1);
-                span = gsl_blas_dnrm2(rast12); //blade element span
-                gsl_vector_memcpy(rast1r, &r.vector);
-                gsl_vector_sub(rast1r, rast1);
-                gsl_blas_ddot(rast1r, rast12, &t);
-                t = t / (span * span);
-
-                gsl_vector_memcpy(Si, rast12);
-                gsl_blas_dscal(t, Si);
-                gsl_vector_add(Si, rast1);
-
-                gsl_vector_memcpy(licap, rast12);
-                gsl_blas_dscal(span, licap);
-
-                gsl_vector_memcpy(sicap, &r.vector);
-                gsl_vector_sub(sicap, Si);
-                simag = gsl_blas_dnrm2(sicap);
-                gsl_blas_dscal(simag, sicap);
-
-                gsl_vector_memcpy(rast2r, &r.vector);
-                gsl_vector_sub(rast2r, rast2);
-                //double alpha = 0.0;
-                gsl_blas_ddot(rast2r, rast12, &alpha);
-                alpha = acos(-alpha / gsl_blas_dnrm2(rast2r) / span);
-                //double beta = 0.0;
-                gsl_blas_ddot(rast1r, rast12, &beta);
-                beta = acos(beta / gsl_blas_dnrm2(rast1r) / span);
-
-                circ1 = circ[astidx];
-                circ2 = circ[astidx + 1];
-                //t can be -ve
-                gamma0 = (circ1 * fabs(span * (1 - t)) + circ2 * fabs(t * span)) / (span * span);
-                gamma1 = (circ2 - circ1) / span;
-                gsl_cross(licap, sicap, vbi);
-                gsl_blas_dscal(0.25 * M_1_PI / simag, vbi);
-                factor = span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
-                gsl_blas_dscal(factor, vbi);
-
-                gsl_vector_add(vb, vbi);
-
-                astidx++;
             }
-        }
-        for (int j = 0; j < 3; ++j) {
-            gsl_matrix_set(_position, i, j,
-                           gsl_vector_get(vb,j)*dt + gsl_matrix_get(_position, i, j));
+            for (int j = 0; j < 3; ++j) {
+                gsl_matrix_set(_position, i, j,
+                               gsl_vector_get(vb, j) * dt + gsl_matrix_get(_position, i, j));
+            }
         }
     }
     gsl_vector_free(vb);
@@ -920,7 +1074,9 @@ void pawan::__wake::BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt){
     gsl_vector_free(vbi);
 }
 
-void pawan::__wake::BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt){
+void pawan::__wake::BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum){
+    int bndvorinclnsteps = pawanrecvdata->bndvorinclnsteps;
+    printf("incl bound vor stretch effect ---------------- upto %d steps \n", bndvorinclnsteps);
     int NbOfLfnLines = pawanrecvdata->NbOfLfnLines;
     int *NbOfAst = pawanrecvdata->NbOfAst;
     double *astpos = pawanrecvdata->astpos;
@@ -947,97 +1103,100 @@ void pawan::__wake::BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt
     double circ1, circ2, gamma0, gamma1;
     double factor1, factor21, factor22, factor23, factor24;
     double d1mag, d2mag, dotprod;
-    int astidx = 0;
     for(int i = 0; i<_numParticles; ++i) {
-        gsl_vector_set_zero(da);
-        gsl_vector_const_view a = gsl_matrix_const_row(_vorticity, i);
-        gsl_vector_const_view r = gsl_matrix_const_row(_position, i);
-        for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
-            for (size_t iast = 0; iast < NbOfAst[ilfn]-2; ++iast) {
-                for(int j = 0; j<3; ++j) {
-                    gsl_vector_set(rast1, j, astpos[3 * astidx + j]);
-                    gsl_vector_set(rast2, j, astpos[3 * (astidx+1) + j]);
+        if (stepnum - gsl_vector_get(_active, i) < bndvorinclnsteps) { //only particles from the last ... steps affected by bound vortices
+            gsl_vector_set_zero(da);
+            gsl_vector_const_view a = gsl_matrix_const_row(_vorticity, i);
+            gsl_vector_const_view r = gsl_matrix_const_row(_position, i);
+            int astidx = 0;
+            for (size_t ilfn = 0; ilfn < NbOfLfnLines; ++ilfn) {
+                for (size_t iast = 0; iast < NbOfAst[ilfn] - 2; ++iast) {
+                    for (int j = 0; j < 3; ++j) {
+                        gsl_vector_set(rast1, j, astpos[3 * astidx + j]);
+                        gsl_vector_set(rast2, j, astpos[3 * (astidx + 1) + j]);
+                    }
+
+                    gsl_vector_memcpy(rast12, rast2);
+                    gsl_vector_sub(rast12, rast1);
+                    span = gsl_blas_dnrm2(rast12); //blade element span
+                    gsl_vector_memcpy(rast1r, &r.vector);
+                    gsl_vector_sub(rast1r, rast1);
+                    gsl_blas_ddot(rast1r, rast12, &t);
+                    t = t / (span * span);
+
+                    gsl_vector_memcpy(Si, rast12);
+                    gsl_blas_dscal(t, Si);
+                    gsl_vector_add(Si, rast1);
+
+                    gsl_vector_memcpy(licap, rast12);
+                    gsl_blas_dscal(1/span, licap);
+
+                    gsl_vector_memcpy(sicap, &r.vector);
+                    gsl_vector_sub(sicap, Si);
+                    simag = gsl_blas_dnrm2(sicap);
+                    gsl_blas_dscal(1/simag, sicap);
+
+                    gsl_vector_memcpy(rast2r, &r.vector);
+                    gsl_vector_sub(rast2r, rast2);
+                    //double alpha = 0.0;
+                    gsl_blas_ddot(rast2r, rast12, &alpha);
+                    alpha = acos(-alpha / gsl_blas_dnrm2(rast2r) / span);
+                    //double beta = 0.0;
+                    gsl_blas_ddot(rast1r, rast12, &beta);
+                    beta = acos(beta / gsl_blas_dnrm2(rast1r) / span);
+
+                    circ1 = circ[astidx];
+                    circ2 = circ[astidx + 1];
+                    //t can be -ve
+                    gamma0 = (circ1 * fabs(span * (1 - t)) + circ2 * fabs(t * span)) / (span * span);
+                    gamma1 = (circ2 - circ1) / span;
+
+                    gsl_vector_memcpy(d2cap, rast2r);
+                    gsl_vector_memcpy(d1cap, rast1r);
+                    d2mag = gsl_blas_dnrm2(rast2r);
+                    d1mag = gsl_blas_dnrm2(rast1r);
+                    gsl_blas_dscal(1/d2mag, d2cap);
+                    gsl_blas_dscal(1/d1mag, d1cap);
+
+                    gsl_cross(licap, &a.vector, da1);
+                    factor1 = span * gamma0 * (cos(beta) + cos(alpha)) + simag * gamma1 * (sin(beta) - sin(alpha));
+                    gsl_blas_dscal(factor1, da1);
+
+                    gsl_cross(licap, sicap, licrosssi);
+                    gsl_blas_ddot(&a.vector, licrosssi, &dotprod);
+
+                    gsl_vector_memcpy(da21, licap);
+                    factor21 = span * gamma0 * (sin(beta) - sin(alpha)) - simag * gamma1 * (cos(beta) + cos(alpha));
+                    gsl_blas_dscal(factor21, da21);
+                    gsl_vector_memcpy(da22, sicap);
+                    factor22 = -(2 * span * gamma0 * (cos(beta) + cos(alpha)) -
+                                 simag * gamma1 * (sin(beta) - sin(alpha)));
+                    gsl_blas_dscal(factor22, da22);
+                    gsl_vector_memcpy(da23, d1cap);
+                    factor23 = -(span * gamma0 * sin(beta) - simag * gamma1 * cos(beta)) * cos(beta);
+                    gsl_blas_dscal(factor23, da23);
+                    gsl_vector_memcpy(da24, d2cap);
+                    factor24 = -(span * gamma0 * sin(alpha) + simag * gamma1 * cos(alpha)) * cos(alpha);
+                    gsl_blas_dscal(factor24, da24);
+
+                    gsl_vector_add(da21, da22);
+                    gsl_vector_add(da21, da23);
+                    gsl_vector_add(da21, da24);
+                    gsl_blas_dscal(dotprod, da21);
+                    gsl_vector_add(da1, da21);
+                    gsl_blas_dscal(0.25 * M_1_PI / (simag * simag), da1);
+                    gsl_vector_add(da, da1);
+
+                    astidx++;
                 }
-
-                gsl_vector_memcpy(rast12,rast2);
-                gsl_vector_sub(rast12,rast1);
-                span = gsl_blas_dnrm2(rast12); //blade element span
-                gsl_vector_memcpy(rast1r,&r.vector);
-                gsl_vector_sub(rast1r,rast1);
-                gsl_blas_ddot(rast1r,rast12,&t);
-                t=t/(span*span);
-
-                gsl_vector_memcpy(Si,rast12);
-                gsl_blas_dscal(t,Si);
-                gsl_vector_add(Si,rast1);
-
-                gsl_vector_memcpy(licap,rast12);
-                gsl_blas_dscal(span,licap);
-
-                gsl_vector_memcpy(sicap,&r.vector);
-                gsl_vector_sub(sicap,Si);
-                simag = gsl_blas_dnrm2(sicap);
-                gsl_blas_dscal(simag,sicap);
-
-                gsl_vector_memcpy(rast2r,&r.vector);
-                gsl_vector_sub(rast2r,rast2);
-                //double alpha = 0.0;
-                gsl_blas_ddot(rast2r,rast12,&alpha);
-                alpha = acos(-alpha/gsl_blas_dnrm2(rast2r)/span);
-                //double beta = 0.0;
-                gsl_blas_ddot(rast1r,rast12,&beta);
-                beta = acos(beta/gsl_blas_dnrm2(rast1r)/span);
-
-                circ1 = circ[astidx];
-                circ2 = circ[astidx+1];
-                //t can be -ve
-                gamma0 = (circ1*fabs(span*(1-t)) + circ2*fabs(t*span))/(span*span);
-                gamma1 = (circ2-circ1)/span;
-
-                gsl_vector_memcpy(rast2r,d2cap);
-                gsl_vector_memcpy(rast1r,d1cap);
-                d2mag = gsl_blas_dnrm2(rast2r);
-                d1mag = gsl_blas_dnrm2(rast1r);
-                gsl_blas_dscal(d2mag,d2cap);
-                gsl_blas_dscal(d1mag,d1cap);
-
-                gsl_cross(licap,&a.vector,da1);
-                factor1 =span*gamma0*(cos(beta)+cos(alpha)) + simag*gamma1*(sin(beta)-sin(alpha));
-                gsl_blas_dscal(factor1,da1);
-
-                gsl_cross(licap,sicap,licrosssi);
-                gsl_blas_ddot(&a.vector,licrosssi,&dotprod);
-
-                gsl_vector_memcpy(licap,da21);
-                factor21 = span*gamma0*(sin(beta)-sin(alpha)) - simag*gamma1*(cos(beta)+cos(alpha));
-                gsl_blas_dscal(factor21,da21);
-                gsl_vector_memcpy(sicap,da22);
-                factor22 = -(2*span*gamma0*(cos(beta)+cos(alpha)) - simag*gamma1*(sin(beta)-sin(alpha)));
-                gsl_blas_dscal(factor22,da22);
-                gsl_vector_memcpy(d1cap,da23);
-                factor23 = -(span*gamma0*sin(beta) - simag*gamma1*cos(beta))*cos(beta);
-                gsl_blas_dscal(factor23,da23);
-                gsl_vector_memcpy(d2cap,da24);
-                factor24 = -(span*gamma0*sin(alpha) + simag*gamma1*cos(alpha))*cos(alpha);
-                gsl_blas_dscal(factor24,da24);
-
-                gsl_vector_add(da21,da22);
-                gsl_vector_add(da21,da23);
-                gsl_vector_add(da21,da24);
-                gsl_blas_dscal(dotprod,da21);
-                gsl_vector_add(da1,da21);
-                gsl_blas_dscal(0.25*M_1_PI/(simag*simag),da1);
-                gsl_vector_add(da,da1);
-
-                astidx++;
             }
-        }
-        printf("da1 =%+10.5e, %+10.5e, %+10.5e ---",
-               gsl_vector_get(da1, 0),gsl_vector_get(da1, 1),gsl_vector_get(da1, 2));
+            //printf("da1 =%+10.5e, %+10.5e, %+10.5e ---",
+            //       gsl_vector_get(da1, 0), gsl_vector_get(da1, 1), gsl_vector_get(da1, 2));
 
-        for (int j = 0; j < 3; ++j) {
-            gsl_matrix_set(_vorticity, i, j,
-                           gsl_vector_get(da,j)*dt + gsl_matrix_get(_vorticity, i, j));
+            for (int j = 0; j < 3; ++j) {
+                gsl_matrix_set(_vorticity, i, j,
+                               gsl_vector_get(da, j) * dt + gsl_matrix_get(_vorticity, i, j));
+            }
         }
     }
     gsl_vector_free(da);
@@ -1060,9 +1219,9 @@ void pawan::__wake::BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt
 
 }
 
-void pawan::__wake::updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt){
-    BoundVorEffectVind(pawanrecvdata,dt);
-    //BoundVorEffectStretch(pawanrecvdata,dt);
+void pawan::__wake::updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum){
+    BoundVorEffectVind(pawanrecvdata,dt,stepnum);
+    BoundVorEffectStretch(pawanrecvdata,dt,stepnum);
 }
 
 pawan::__wake::~__wake(){

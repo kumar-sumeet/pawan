@@ -81,7 +81,7 @@ class __system{
          * copy particles from the wakes to a buffer for GPU
          * pointer should be actually double4
          */
-        virtual void getParticles(double *particles) = 0;
+        virtual void getParticles(double *particles,int *age, size_t stepnum) = 0;
         virtual void getParticles_arr(double *particles) = 0;
         virtual int amountParticles() = 0;
         virtual int totalmaxParticles() = 0;
@@ -97,8 +97,10 @@ class __system{
         virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum){};
        //! translate particles with Vinf
         virtual void updateVinfEffect(const double *Vinf,double &dt){};
+        //effect of vi due to bound-bound vortex interactions
+        virtual void updateBoundVorBoundVorEffectVind(PawanRecvData pawanrecvdata,PawanSendData pawansenddata,int astidx, int lfnidx){};
         //! translate particles due to induced vel from bound vortices
-        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt){};
+        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum){};
         //! get induced due to all wake particles at each airstation
         virtual void getInflow(PawanRecvData pawanrecvdata, PawanSendData pawansenddata){};
         //! Diagnose

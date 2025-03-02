@@ -428,10 +428,15 @@ void pawan::__interaction::updateVinfEffect(const double *Vinf,double &dt){
     }
 }
 
-void pawan::__interaction::updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt){
+void pawan::__interaction::updateBoundVorBoundVorEffectVind(PawanRecvData pawanrecvdata,PawanSendData pawansenddata,int astidx, int lfnidx){
+    for(auto &w: _W){
+        w->updateBoundVorBoundVorEffectVind(pawanrecvdata,pawansenddata,astidx, lfnidx);
+    }
+}
+void pawan::__interaction::updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum){
     size_t offset = 0;
     for(auto &w: _W){
-        w->updateBoundVorEffect(pawanrecvdata,dt); //effect of all lifting surfaces on each wake
+        w->updateBoundVorEffect(pawanrecvdata,dt,stepnum); //effect of all lifting surfaces on each wake
         offset += w->_maxsize;
     }
 }
@@ -460,9 +465,11 @@ void pawan::__interaction::getInflow(PawanRecvData pawanrecvdata, PawanSendData 
             for (size_t k = 0; k < 3; ++k) {
                 lambda[astidx*3 + k] = gsl_vector_get(vbi, k);
             }
-            printf("---> lambda = %+10.5e, %+10.5e, %+10.5e @ast = %+10.5e, %+10.5e, %+10.5e  \n",
+/*            printf("---> lambda = %+10.5e, %+10.5e, %+10.5e @ast = %+10.5e, %+10.5e, %+10.5e  \n",
                    lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2],
                    astpos[astidx*3],astpos[astidx*3 + 1],astpos[astidx*3 + 2]);
+*/          printf("CPU---> lambda = %+10.5e, %+10.5e, %+10.5e \n",
+            lambda[astidx*3],lambda[astidx*3 + 1],lambda[astidx*3 + 2]);
             astidx++;
             gsl_vector_free(vbi);
             gsl_vector_free(rast);
@@ -778,7 +785,7 @@ void pawan::__interaction::setParticles(double *p){
 
 }
 
-void pawan::__interaction::getParticles(double *p){
+void pawan::__interaction::getParticles(double *p,int *age, size_t stepnum){
 
     auto particlesBuffer = reinterpret_cast<double4*>(p);
 
@@ -794,6 +801,7 @@ void pawan::__interaction::getParticles(double *p){
             particlesBuffer[2 * position + 1].y = gsl_matrix_get(w->_vorticity, i, 1);
             particlesBuffer[2 * position + 1].z = gsl_matrix_get(w->_vorticity, i, 2);
             particlesBuffer[2 * position + 1].w = gsl_vector_get(w->_volume, i);
+            age[position] = stepnum - gsl_vector_get(w->_active, i);
         }
     }
 }

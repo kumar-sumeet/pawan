@@ -99,7 +99,7 @@ void pawan::__integration::integrate(__system *S,
                    opawanrecvdata.Vinf[2]);
         }
         S->updateVinfEffect(opawanrecvdata.Vinf,opawanrecvdata.deltat);
-        S->updateBoundVorEffect(&opawanrecvdata,opawanrecvdata.deltat);
+        S->updateBoundVorEffect(&opawanrecvdata,opawanrecvdata.deltat,stepnum);
         fwrite(&_t,sizeof(double),1,f);
         S->write(f);  //write particles info after interaction in this time step
 

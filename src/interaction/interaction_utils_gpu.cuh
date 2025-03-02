@@ -1,8 +1,8 @@
 #ifndef PAWAN_INTERACTION_UTILS_GPU_CUH
 #define PAWAN_INTERACTION_UTILS_GPU_CUH
-
-#define HIGHORDER_GPU 1
-#define GAUSSIAN_GPU 0
+#include <stdio.h>
+#define HIGHORDER_GPU 0
+#define GAUSSIAN_GPU 1
 
 #if HIGHORDER_GPU
 #include "src/interaction/highorder.cuh"
@@ -11,6 +11,7 @@
 #endif
 
 __device__ inline void INTERACT_GPU(double nu,
+                                    const int source_age,
                                     const double4 &source_pos,
                                     const double4 &target_pos,
                                     const double4 &source_vorticity,
@@ -55,6 +56,7 @@ __device__ inline void scale(double a, double3 &v);
  * vorticity.w : volume
  */
 __device__ inline void INTERACT_GPU(const double nu,
+                                    const int source_age,
                                     const double4 &source_pos,
                                     const double4 &target_pos,
                                     const double4 &source_vorticity,
@@ -78,7 +80,7 @@ __device__ inline void INTERACT_GPU(const double nu,
     add(velocity, vel);
 
     // Rate of change of vorticity computation
-    //VORSTRETCH_GPU(q,F,source_vorticity,target_vorticity,displacement,retvorticity);
+    //VORSTRETCH_GPU(q, F, source_vorticity, target_vorticity, displacement, retvorticity);
     DIFFUSION_GPU(nu,sigma,n,source_vorticity,target_vorticity,retvorticity);
 
 }
@@ -219,6 +221,13 @@ __device__ inline double3 getVi(const double4 &source_pos, const double4 &source
     //partContribVel.x = 1;
     //partContribVel.y = 1;
     //partContribVel.z = 1;
+/*    double y_alpha = pos.y;
+    double y_beta = 1.6 - pos.y;
+    double cos_alpha = y_alpha/sqrt(source_pos.x*source_pos.x + y_alpha*y_alpha);
+    double cos_beta = y_beta/sqrt(source_pos.x*source_pos.x + y_beta*y_beta);
+    double divisor = 2.0/(cos_alpha+cos_beta);
+    scale(divisor,partContribVel); //only to represent finite wake as infinite 2D wake
+*/    //if (divisor<1.1) printf("source_pos.x=%f, %f --",source_pos.x, divisor);
     return partContribVel;
 }
 __device__ inline void getVi(const double4 &source_pos,

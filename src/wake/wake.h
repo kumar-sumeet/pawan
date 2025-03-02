@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <iostream>
+#include <string.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_interp.h>
@@ -19,7 +20,7 @@
 #include "src/io/io.h"
 #include "src/utils/gsl_utils.h"
 #include "src/networkinterface/networkdatastructures.h"
-#define MAXNUMPARTICLES 150000 //max particles per wake
+#define MAXNUMPARTICLES 125000 //max particles per wake
 
 namespace pawan{
 
@@ -85,14 +86,17 @@ class __wake{
         virtual void merge(size_t &stepnum);
         virtual void getlfnvec(double* vec,const double* mat,const int rowsize,const int axis,const int offset, const int size);
         //!Adds vortex particles as the Dymore coupling progresses
-        virtual void addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum);
+        //virtual void addParticlesold(PawanRecvData pawanrecvdata,size_t &stepnum);
         virtual void addParticles(PawanRecvData pawanrecvdata,size_t &stepnum);
         //! translate particles with Vinf
         virtual void updateVinfEffect(const double *Vinf, double &dt);
         //! translate particles due to induced vel from bound vortices
-        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt);
-        virtual void BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt);
-        virtual void BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt);
+        virtual void updateBoundVorEffect(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum);
+        //effect of vi due to bound-bound vortex interactions
+        virtual void updateBoundVorBoundVorEffectVind(PawanRecvData pawanrecvdata,PawanSendData pawansenddata,int astidx, int lfnidx);
+        //effect of bound vortex on particles
+        virtual void BoundVorEffectVind(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum);
+        virtual void BoundVorEffectStretch(PawanRecvData pawanrecvdata,double &dt,size_t &stepnum);
 		//! Print all wake particles
 		/*
 		 * Print wake particle information
