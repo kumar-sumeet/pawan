@@ -28,7 +28,6 @@
 #include "src/networkinterface/networkinterface.cpp" //templates included this way
 #include "interaction/gpu.cuh"
 #include "integration/gpu_int.cuh"
-#include "test.cuh"
 
 #define OUTPUTIP "127.0.0.1"
 #define NETWORKBUFFERSIZE 50
